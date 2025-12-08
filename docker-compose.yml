@@ -1,0 +1,288 @@
+# ============================================================================
+# JobEase - Complete Docker Compose Configuration
+# ============================================================================
+# This file orchestrates all services: MySQL, Backend, Frontend, Jobs Fetcher
+# 
+# Usage:
+#   docker-compose up -d          # Start all services
+#   docker-compose down           # Stop all services
+#   docker-compose logs -f        # View logs
+#   ./jobease.sh start            # Use management script
+# ============================================================================
+
+networks:
+  jobease-network:
+    driver: bridge
+    name: jobease-network
+
+volumes:
+  mysql_data:
+    name: jobease_mysql_data
+  app_logs:
+    name: jobease_app_logs
+  nginx_logs:
+    name: jobease_nginx_logs
+
+services:
+  # ==========================================================================
+  # MySQL Database - Central data store for all services
+  # ==========================================================================
+  mysql:
+    image: mysql:8.0
+    container_name: jobease-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-job_notifier_db}
+      MYSQL_USER: ${MYSQL_USER:-jobnotifier}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-jobnotifier123}
+      TZ: UTC
+    ports:
+      - "3307:3306"  # External:Internal (avoid conflict with local MySQL)
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./job-notifier/sample_data.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - jobease-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-rootpassword}"]
+      timeout: 20s
+      retries: 10
+      interval: 10s
+      start_period: 40s
+    command: 
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+00:00
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # ==========================================================================
+  # Backend API - Spring Boot application
+  # ==========================================================================
+  backend:
+    build:
+      context: ./job-notifier
+      dockerfile: Dockerfile
+      args:
+        - BUILD_DATE=${BUILD_DATE:-2025-01-01}
+        - VERSION=${VERSION:-1.0.0}
+    image: jobease/backend:latest
+    container_name: jobease-backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    volumes:
+      - app_logs:/app/logs
+    environment:
+      # Server Configuration
+      SERVER_PORT: 8080
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+      
+      # Database Configuration
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-job_notifier_db}?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: ${MYSQL_USER:-jobnotifier}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD:-jobnotifier123}
+      
+      # JPA Configuration
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.MySQLDialect
+      SPRING_JPA_PROPERTIES_HIBERNATE_JDBC_TIME_ZONE: UTC
+      
+      # JWT Configuration
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
+      
+      # Scheduler Configuration
+      SCHEDULER_FIXED_RATE: ${SCHEDULER_FIXED_RATE:-60000}
+      SCHEDULER_ENABLED: ${SCHEDULER_ENABLED:-true}
+      SCHEDULER_DEADLINE_REMINDER_ENABLED: ${SCHEDULER_DEADLINE_REMINDER_ENABLED:-true}
+      SCHEDULER_NOTIFICATION_CLEANUP_ENABLED: ${NOTIFICATION_CLEANUP_ENABLED:-true}
+      
+      # Notifier Configuration
+      NOTIFIER_MAX_PER_USER: ${NOTIFIER_MAX_PER_USER:-5}
+      
+      # AI Configuration (Google Gemini)
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.0-flash}
+      AI_RELEVANCE_THRESHOLD: ${AI_RELEVANCE_THRESHOLD:-0.7}
+      
+      # Google OAuth
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      
+      # Cloudinary Configuration
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
+      
+      # LaTeX Configuration
+      LATEX_COMPILER_URL: ${LATEX_COMPILER_URL:-https://latex.ytotech.com/builds/sync}
+      LATEX_TIMEOUT: ${LATEX_TIMEOUT:-30000}
+      
+      # Email Configuration (Gmail SMTP)
+      SPRING_MAIL_HOST: smtp.gmail.com
+      SPRING_MAIL_PORT: 587
+      SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME}
+      SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD}
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH: true
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: true
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_REQUIRED: true
+      
+      # Frontend URL (for email links)
+      APP_FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      
+      # Logging Configuration
+      LOGGING_LEVEL_ROOT: ${LOGGING_LEVEL_ROOT:-INFO}
+      LOGGING_LEVEL_COM_JOBNOTIFER: ${LOGGING_LEVEL_COM_JOBNOTIFER:-INFO}
+      LOGGING_FILE_PATH: /app/logs
+      
+    networks:
+      - jobease-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health", "||", "exit", "1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # ==========================================================================
+  # Frontend - React application with Nginx
+  # ==========================================================================
+  frontend:
+    build:
+      context: ./jobsease-frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080/api}
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID}
+        VITE_ENABLE_BACKEND_API: ${VITE_ENABLE_BACKEND_API:-true}
+    image: jobease/frontend:latest
+    container_name: jobease-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "5173:5173"
+    volumes:
+      - nginx_logs:/var/log/nginx
+    networks:
+      - jobease-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5173", "||", "exit", "1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+  # ==========================================================================
+  # Jobs Fetcher - Python Telegram bot for fetching jobs
+  # ==========================================================================
+  jobs-fetcher:
+    build:
+      context: ./jobs-fetcher
+      dockerfile: Dockerfile
+      platforms:
+        - linux/amd64
+        - linux/arm64
+    image: jobease/jobs-fetcher:latest
+    container_name: jobease-jobs-fetcher
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    command: ["sh", "-c", "ls -la /app && python scheduler.py"]
+    environment:
+      # Database Connection (MySQL URL format)
+      DATABASE_URL: mysql+mysqlconnector://${MYSQL_USER:-jobnotifier}:${MYSQL_PASSWORD:-jobnotifier123}@mysql:3306/${MYSQL_DATABASE:-job_notifier_db}
+      
+      # Telegram API Configuration
+      TELEGRAM_API_ID: ${TELEGRAM_API_ID}
+      TELEGRAM_API_HASH: ${TELEGRAM_API_HASH}
+      TELEGRAM_PHONE_NUMBER: ${TELEGRAM_PHONE_NUMBER}
+      TELEGRAM_SESSION_STRING: ${TELEGRAM_SESSION_STRING:-}
+      
+      # Telegram Groups (comma-separated)
+      TELEGRAM_GROUPS: ${TELEGRAM_GROUPS}
+      
+      # Scheduler Configuration (milliseconds)
+      SCHEDULE_INTERVAL_MS: ${SCHEDULE_INTERVAL_MS:-300000}
+      
+      # Logging
+      PYTHONUNBUFFERED: 1
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      
+    volumes:
+      - ./jobs-fetcher/sessions:/app/sessions
+    networks:
+      - jobease-network
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+# ============================================================================
+# Additional Notes:
+# ============================================================================
+#
+# 1. All services are connected via 'jobease-network' bridge network
+# 2. Data persists in named volumes even after containers are removed
+# 3. Health checks ensure services are ready before dependent services start
+# 4. Resource limits prevent any service from consuming too much CPU/memory
+# 5. All services restart automatically unless explicitly stopped
+#
+# 6. Port Mappings:
+#    - Frontend: http://localhost:3000
+#    - Backend API: http://localhost:8080
+#    - MySQL: localhost:3307 (external tools)
+#
+# 7. Environment Variables:
+#    - Set in .env file in the same directory
+#    - Override defaults for customization
+#    - Never commit .env to version control
+#
+# 8. Volumes:
+#    - mysql_data: Database storage (persistent)
+#    - app_logs: Backend application logs
+#    - nginx_logs: Frontend access logs
+#
+# 9. Management:
+#    - Use ./jobease.sh for common operations
+#    - Or use docker-compose commands directly
+#
+# 10. Security:
+#     - Change all default passwords in production
+#     - Use strong JWT secrets (64+ characters)
+#     - Enable HTTPS in production (use reverse proxy)
+#     - Keep API keys confidential
+#
+# ============================================================================
+

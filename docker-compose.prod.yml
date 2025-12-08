@@ -1,0 +1,259 @@
+###############################################################################
+# JobEase - Production Docker Compose Configuration
+###############################################################################
+# This file contains production-specific overrides
+# Use together with main docker-compose.yml:
+#   docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Production Features:
+#   - Auto-restart policies
+#   - Resource limits
+#   - Health checks
+#   - Optimized logging
+#   - Replicas for backend
+###############################################################################
+
+services:
+  # MySQL Database - Production Settings
+  mysql:
+    restart: always
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+00:00
+      - --max_connections=200
+      - --innodb_buffer_pool_size=2G
+      - --innodb_log_file_size=256M
+      - --slow_query_log=1
+      - --long_query_time=2
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "10"
+    # Uncomment for external database backup location
+    # volumes:
+    #   - /backup/mysql:/backup
+
+  # Backend API - Production Settings
+  backend:
+    restart: always
+    environment:
+      # Production profile
+      SPRING_PROFILES_ACTIVE: prod
+      
+      # Optimized JVM settings for production
+      JAVA_OPTS: >-
+        -Xmx2g
+        -Xms1g
+        -XX:+UseG1GC
+        -XX:MaxGCPauseMillis=200
+        -XX:+HeapDumpOnOutOfMemoryError
+        -XX:HeapDumpPath=/app/logs
+        -Dfile.encoding=UTF-8
+        -Djava.security.egd=file:/dev/./urandom
+      
+      # Production logging
+      LOGGING_LEVEL_ROOT: WARN
+      LOGGING_LEVEL_COM_JOBNOTIFER: INFO
+      
+      # Enable Actuator endpoints for monitoring
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,metrics,prometheus
+      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: when_authorized
+      
+    deploy:
+      # Multiple replicas for load balancing
+      replicas: 2
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 3G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+      # Rolling update strategy
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+        order: start-first
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "10"
+
+  # Frontend - Production Settings
+  frontend:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "10"
+    # Uncomment to add custom Nginx config
+    # volumes:
+    #   - ./nginx.prod.conf:/etc/nginx/conf.d/default.conf:ro
+
+  # Jobs Fetcher - Production Settings
+  jobs-fetcher:
+    restart: always
+    build:
+      platforms:
+        - linux/amd64
+        - linux/arm64
+    command: ["python", "scheduler.py"]  # Remove debug ls in production
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "10"
+
+###############################################################################
+# Production Notes:
+###############################################################################
+#
+# 1. SSL/TLS Configuration:
+#    Add a reverse proxy (Nginx/Caddy/Traefik) in front for HTTPS
+#
+# 2. Load Balancing:
+#    Backend is configured with 2 replicas. Adjust as needed.
+#    Add a load balancer (Nginx/HAProxy) if needed.
+#
+# 3. Monitoring:
+#    - Expose Prometheus metrics from backend
+#    - Add Grafana for visualization
+#    - Set up alerts for critical issues
+#
+# 4. Logging:
+#    - Logs are limited to prevent disk space issues
+#    - Consider centralized logging (ELK, Loki)
+#
+# 5. Backups:
+#    - Automated database backups are recommended
+#    - Store backups in separate location
+#    - Test restore procedures regularly
+#
+# 6. Security:
+#    - Use Docker secrets for sensitive data
+#    - Enable firewall rules
+#    - Restrict exposed ports
+#    - Use private Docker registry
+#    - Scan images for vulnerabilities
+#
+# 7. Scaling:
+#    Increase replicas based on load:
+#      docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d --scale backend=5
+#
+# 8. Environment:
+#    Use production .env file with strong credentials
+#
+###############################################################################
+
+###############################################################################
+# Optional Production Services
+###############################################################################
+# Uncomment and configure as needed
+
+# # Reverse Proxy (Caddy with automatic HTTPS)
+# caddy:
+#   image: caddy:2-alpine
+#   container_name: jobease-caddy
+#   restart: always
+#   ports:
+#     - "80:80"
+#     - "443:443"
+#   volumes:
+#     - ./Caddyfile:/etc/caddy/Caddyfile
+#     - caddy_data:/data
+#     - caddy_config:/config
+#   networks:
+#     - jobease-network
+
+# # Prometheus (Metrics Collection)
+# prometheus:
+#   image: prom/prometheus:latest
+#   container_name: jobease-prometheus
+#   restart: always
+#   ports:
+#     - "9090:9090"
+#   volumes:
+#     - ./prometheus.yml:/etc/prometheus/prometheus.yml
+#     - prometheus_data:/prometheus
+#   command:
+#     - '--config.file=/etc/prometheus/prometheus.yml'
+#     - '--storage.tsdb.path=/prometheus'
+#   networks:
+#     - jobease-network
+
+# # Grafana (Metrics Visualization)
+# grafana:
+#   image: grafana/grafana:latest
+#   container_name: jobease-grafana
+#   restart: always
+#   ports:
+#     - "3001:3000"
+#   volumes:
+#     - grafana_data:/var/lib/grafana
+#   environment:
+#     - GF_SECURITY_ADMIN_PASSWORD=admin
+#   networks:
+#     - jobease-network
+
+# # Redis (Caching)
+# redis:
+#   image: redis:7-alpine
+#   container_name: jobease-redis
+#   restart: always
+#   ports:
+#     - "6379:6379"
+#   volumes:
+#     - redis_data:/data
+#   command: redis-server --appendonly yes
+#   networks:
+#     - jobease-network
+
+# volumes:
+#   caddy_data:
+#   caddy_config:
+#   prometheus_data:
+#   grafana_data:
+#   redis_data:
+
