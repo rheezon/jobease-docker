@@ -180,6 +180,11 @@ services:
       - backend
     ports:
       - "5173:5173"
+    environment:
+      # Runtime environment variables (injected when container starts)
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080/api}
+      VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID}
+      VITE_ENABLE_BACKEND_API: ${VITE_ENABLE_BACKEND_API:-true}
     volumes:
       - nginx_logs:/var/log/nginx
     networks:
