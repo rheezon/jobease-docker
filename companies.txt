@@ -1,0 +1,21 @@
+# LinkedIn Company URLs or Slugs
+# Add one company per line
+# Lines starting with # are ignored
+
+# Tech Giants
+https://www.linkedin.com/company/google/
+microsoft
+apple
+amazon
+meta
+
+# Indian Startups
+zomato
+swiggy
+paytm
+razorpay
+cred
+
+# Your custom companies
+# branch-international
+# company-name

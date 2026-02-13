@@ -89,8 +89,9 @@ class TelegramIngestionService:
     
     def _validate_config(self):
         """Validate required configuration"""
-        if not self.session_string:
-            self.logger.error("TELEGRAM_SESSION_STRING not found in environment")
+        if not self.session_string or not self.session_string.strip():
+            self.logger.error("TELEGRAM_SESSION_STRING not found or empty in environment")
+            self.logger.error("To generate a new session, run: python generate_session.py")
             return False
         
         if not self.groups:
@@ -200,6 +201,12 @@ class TelegramIngestionService:
                 self.logger.error("TELEGRAM_API_ID or TELEGRAM_API_HASH not found")
                 return False
             
+            # Check if session string is provided
+            if not self.session_string or not self.session_string.strip():
+                self.logger.error("TELEGRAM_SESSION_STRING is empty or not set")
+                self.logger.error("To generate a new session, run: python generate_session.py")
+                return False
+            
             self.client = TelegramClient(StringSession(self.session_string), int(api_id), api_hash)
             
             self.logger.info("Connecting to Telegram")
@@ -207,6 +214,11 @@ class TelegramIngestionService:
             
             if not await self.client.is_user_authorized():
                 self.logger.error("Session invalid or expired")
+                self.logger.error("Possible causes:")
+                self.logger.error("  1. Session string is invalid or corrupted")
+                self.logger.error("  2. Session expired (Telegram sessions can expire)")
+                self.logger.error("  3. Session revoked (logged out from another device)")
+                self.logger.error("Solution: Regenerate session by running: python generate_session.py")
                 return False
             
             self.logger.info("Successfully connected to Telegram")
@@ -214,6 +226,8 @@ class TelegramIngestionService:
             
         except Exception as e:
             self.logger.error(f"Error connecting to Telegram: {e}")
+            import traceback
+            self.logger.error(traceback.format_exc())
             return False
     
     async def find_group(self, group_name):

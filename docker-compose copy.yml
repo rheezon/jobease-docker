@@ -217,7 +217,7 @@ services:
           memory: 128M
 
   # ==========================================================================
-  # Jobs Fetcher - Python service for fetching jobs from Telegram groups
+  # Jobs Fetcher - Python service for fetching jobs from Jooble API
   # ==========================================================================
   jobs-fetcher:
     build:
@@ -233,17 +233,20 @@ services:
       mysql:
         condition: service_healthy
     environment:
-      # Database Configuration (URL format for Telegram fetcher)
-      DATABASE_URL: mysql+mysqlconnector://${MYSQL_USER:-jobnotifier}:${MYSQL_PASSWORD:-jobnotifier123}@mysql:3306/${MYSQL_DATABASE:-job_notifier_db}
+      # Database Connection Configuration
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: ${MYSQL_USER:-jobnotifier}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-jobnotifier123}
+      MYSQL_DB: ${MYSQL_DATABASE:-job_notifier_db}
       
-      # Telegram API Configuration
-      TELEGRAM_API_ID: ${TELEGRAM_API_ID}
-      TELEGRAM_API_HASH: ${TELEGRAM_API_HASH}
-      TELEGRAM_SESSION_STRING: ${TELEGRAM_SESSION_STRING}
-      TELEGRAM_GROUPS: ${TELEGRAM_GROUPS}
+      # Jooble API Configuration
+      JOOBLE_API_KEY: ${JOOBLE_API_KEY}
+      JOOBLE_KEYWORDS: ${JOOBLE_KEYWORDS:-python developer}
+      JOOBLE_LOCATION: ${JOOBLE_LOCATION:-}
       
-      # Scheduler Configuration (milliseconds - default 5 hours)
-      SCHEDULE_INTERVAL_MS: ${SCHEDULE_INTERVAL_MS:-18000000}
+      # Scheduler Configuration (milliseconds)
+      SCHEDULE_INTERVAL_MS: ${SCHEDULE_INTERVAL_MS:-7200000}
       
       # Logging
       PYTHONUNBUFFERED: 1

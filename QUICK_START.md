@@ -1,4 +1,4 @@
-# JobEase - Quick Start Guide
+# JobKick - Quick Start Guide
 
 ## 🚀 Get Started in 5 Minutes
 

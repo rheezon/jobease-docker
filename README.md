@@ -1,8 +1,8 @@
-# JobEase - Intelligent Job Notification Platform
+# JobKick - Intelligent Job Notification Platform
 
 <div align="center">
 
-![JobEase](https://img.shields.io/badge/JobEase-v1.0.0-blue)
+![JobKick](https://img.shields.io/badge/JobKick-v1.0.0-blue)
 ![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.6-6DB33F?logo=springboot)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)
@@ -21,10 +21,10 @@
 
 ---
 
-## 🎯 What is JobEase?
+## 🎯 What is JobKick?
 
-JobEase is a comprehensive job notification platform that:
-- 🤖 **Fetches jobs** from Telegram channels automatically
+JobKick is a comprehensive job notification platform that:
+- 🤖 **Fetches jobs** from Jooble API automatically
 - 🧠 **Matches jobs** to your preferences using AI (Google Gemini)
 - 📄 **Generates customized resumes** for each relevant opportunity
 - ☁️ **Stores resumes** in the cloud (Cloudinary)
@@ -64,7 +64,7 @@ JobEase is a comprehensive job notification platform that:
 
 ```bash
 # 1. Clone and navigate
-cd jobease
+cd jobkick
 
 # 2. Configure environment
 cp env.template .env
@@ -97,7 +97,7 @@ For detailed setup instructions, see [Quick Start Guide](QUICK_START.md)
 
 ```
 ┌──────────────────────────────────────────────────────┐
-│                   JobEase Platform                   │
+│                   JobKick Platform                   │
 ├──────────────────────────────────────────────────────┤
 │                                                      │
 │  ┌────────────┐    ┌────────────┐    ┌───────────┐ │
@@ -116,10 +116,10 @@ For detailed setup instructions, see [Quick Start Guide](QUICK_START.md)
 
 **Project Structure:**
 ```
-jobease/
+jobkick/
 ├── job-notifier/          # Backend (Spring Boot)
 ├── jobsease-frontend/     # Frontend (React + Nginx)
-├── jobs-fetcher/          # Jobs Fetcher (Python + Telethon)
+├── jobs-fetcher/          # Jobs Fetcher (Python + Telethon + Jooble)
 └── docker-compose.yml     # Unified orchestration
 ```
 
@@ -130,7 +130,7 @@ jobease/
 | **Frontend** | React 19 + Vite + Nginx | User interface |
 | **Backend** | Spring Boot 3 + Java 17 | REST API & business logic |
 | **Database** | MySQL 8.0 | Data persistence |
-| **Jobs Fetcher** | Python 3.11 + Telethon | Telegram job scraper |
+| **Jobs Fetcher** | Python 3.11 + Telethon | Telegram job scraper | Jooble
 | **AI Engine** | Google Gemini | Job matching & scoring |
 | **Storage** | Cloudinary | Resume PDFs |
 | **Email** | Gmail SMTP | Notifications |
@@ -159,8 +159,9 @@ jobease/
 
 ### Jobs Fetcher
 - **Language**: Python 3.11
-- **Telegram**: Telethon
+- **API**: Jooble REST API
 - **Database**: mysql-connector-python
+- **Scheduling**: Custom interval-based scheduler
 - **Config**: python-dotenv
 
 ### DevOps
@@ -313,6 +314,12 @@ TELEGRAM_PHONE=...
 TELEGRAM_CHANNELS=...
 ```
 
+# Jooble API (Job Fetching)
+JOOBLE_API_KEY=...
+JOOBLE_KEYWORDS=python developer
+JOOBLE_LOCATION=
+SCHEDULE_INTERVAL_MS=7200000
+
 See [API Keys Guide](API_KEYS_GUIDE.md) for details on obtaining all credentials.
 
 ---
@@ -351,9 +358,9 @@ For more troubleshooting, see [Documentation](DOCKER_DEPLOYMENT.md#troubleshooti
 ## 📞 Support
 
 - 📖 [Documentation](DOCKER_DEPLOYMENT.md)
-- 🐛 [Issue Tracker](https://github.com/yourusername/jobease/issues)
-- 💬 [Discussions](https://github.com/yourusername/jobease/discussions)
-- 📧 Email: support@jobease.example.com
+- 🐛 [Issue Tracker](https://github.com/yourusername/jobkick/issues)
+- 💬 [Discussions](https://github.com/yourusername/jobkick/discussions)
+- 📧 Email: support@jobkick.example.com
 
 ---
 
@@ -369,7 +376,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - React team for the powerful UI library
 - Google for Gemini AI API
 - Cloudinary for cloud storage
-- Telegram for the Bot API
+- Jooble for the Job Search API
 - Open source community
 
 ---
@@ -407,7 +414,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 <div align="center">
 
-**Made with ❤️ by the JobEase Team**
+**Made with ❤️ by the JobKick Team**
 
 ⭐ Star us on GitHub if you find this useful!
 
