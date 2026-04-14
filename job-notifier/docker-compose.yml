@@ -1,0 +1,93 @@
+version: '3.8'
+
+services:
+  # MySQL Database
+  mysql:
+    image: mysql:8.0
+    container_name: job-notifier-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: job_notifier_db
+      MYSQL_USER: jobnotifier
+      MYSQL_PASSWORD: jobnotifier123
+    ports:
+      - "3307:3306"  
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./sample_data.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - job-notifier-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
+      timeout: 20s
+      retries: 10
+      interval: 10s
+
+  # Spring Boot Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: job-notifier-app
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    volumes:
+      - app_logs:/app/logs
+    environment:
+      # Database Configuration
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/job_notifier_db?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: jobnotifier
+      SPRING_DATASOURCE_PASSWORD: jobnotifier123
+      
+      # JPA Configuration
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.MySQLDialect
+      
+      # JWT Configuration (use your own secret in production!)
+      JWT_SECRET: 5Jf8Kn2Lp9Qr3Ts6Uv1Wx4Yz7Ab0Cd8Ef1Gh4Ij7Kl0Mn3Op6Qr9St2Uv5Wx8Yz1Ab4Cd7Ef0Gh3Ij6Kl9Mn2Op5Qr8St1Uv4Wx7Yz0
+      JWT_EXPIRATION: 86400000
+      
+      # Scheduler Configuration
+      SCHEDULER_FIXED_RATE: 60000
+      SCHEDULER_ENABLED: true
+      
+      # Notifier Configuration
+      NOTIFIER_MAX_PER_USER: 5
+      
+      # AI Configuration (Gemini)
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GEMINI_MODEL: gemini-2.0-flash
+      AI_RELEVANCE_THRESHOLD: 0.7
+      
+      # Google OAuth (used by AuthService via application.properties -> google.clientId=${GOOGLE_CLIENT_ID})
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      
+      # Cloudinary Configuration
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
+      
+      # LaTeX Configuration
+      LATEX_COMPILER_URL: https://latex.ytotech.com/builds/sync
+      LATEX_TIMEOUT: 30000
+      
+      # Logging
+      LOGGING_LEVEL_COM_JOBNOTIFER: INFO
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - job-notifier-network
+
+networks:
+  job-notifier-network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+    driver: local
+  app_logs:
+    driver: local
+

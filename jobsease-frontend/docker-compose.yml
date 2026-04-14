@@ -1,0 +1,23 @@
+version: "3.9"
+
+services:
+  jobease-frontend:
+    container_name: jobease-frontend
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # Inject Vite envs at build time. Set these in your shell or .env file.
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080/api}
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
+        VITE_ENABLE_BACKEND_API: ${VITE_ENABLE_BACKEND_API:-false}
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+    volumes:
+      - ./logs/nginx:/var/log/nginx
+    # Pass Vite env vars if needed, e.g.:
+    # environment:
+    #   - VITE_API_BASE_URL=https://api.example.com
+
+
