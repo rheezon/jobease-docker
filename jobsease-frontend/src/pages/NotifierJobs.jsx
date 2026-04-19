@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { notifierService, notificationService } from '../services/api';
 import { useAuth } from '../components/AuthProvider';
-import { ArrowLeft, Briefcase, MapPin, DollarSign, Star, Save as SaveIcon, FileText as FileIcon, Edit, Trash2, Building, Clock, Users, ExternalLink, Eye, X, ChevronDown, ChevronUp, Moon, Sun, User, Calendar, AlertCircle, CheckCircle, UserPlus, MessageSquare } from 'lucide-react';
+import { ArrowLeft, Briefcase, MapPin, DollarSign, Star, Save as SaveIcon, FileText as FileIcon, Edit, Trash2, Building, Clock, Users, ExternalLink, Eye, X, ChevronDown, ChevronUp, Moon, Sun, User, Calendar, AlertCircle, CheckCircle, UserPlus, MessageSquare, Mail, Copy, Check } from 'lucide-react';
 import ConfirmDialog from '../components/ConfirmDialog';
 import InterviewChat from '../components/InterviewChat';
 import { generateLinkedInReferralUrl } from '../utils/linkedinCompanyMapping';
@@ -31,7 +31,9 @@ const NotifierJobs = () => {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [modalError, setModalError] = useState('');
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
-  
+  const [hrContactModal, setHrContactModal] = useState(null);
+  const [copiedField, setCopiedField] = useState(null);
+
   // Tab state for applied/not applied
   const [activeTab, setActiveTab] = useState('not-applied'); // 'not-applied' or 'applied'
   
@@ -1125,13 +1127,16 @@ const NotifierJobs = () => {
                           Mark as Applied
                         </button>
                         <button 
-                          onClick={() => window.open(job.jobLink, '_blank')}
+                          onClick={() => {
+                            const url = job.jobLink?.startsWith('http') ? job.jobLink : `https://${job.jobLink}`;
+                            window.open(url, '_blank');
+                          }}
                           className="apply-now-btn"
                         >
                           <ExternalLink size={18} /> Apply Now
                         </button>
                         {job.companyName && (
-                          <button 
+                          <button
                             onClick={() => handleApplyForReferral(job.companyName)}
                             className="referral-btn-jobs"
                             title="Find referrals on LinkedIn"
@@ -1139,11 +1144,45 @@ const NotifierJobs = () => {
                             <UserPlus size={18} /> Ask for Referral
                           </button>
                         )}
+                        {(job.hrContactEmail || job.hrContactApplyLinks) && (
+                          <button
+                            onClick={() => setHrContactModal(job)}
+                            title="View HR contact details"
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                              padding: '10px 18px',
+                              borderRadius: '8px',
+                              border: 'none',
+                              background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
+                              color: 'white',
+                              fontSize: '14px',
+                              fontWeight: 500,
+                              cursor: 'pointer',
+                              transition: 'all 0.2s',
+                              boxShadow: '0 2px 8px rgba(245, 158, 11, 0.3)'
+                            }}
+                            onMouseEnter={e => {
+                              e.currentTarget.style.transform = 'translateY(-1px)';
+                              e.currentTarget.style.boxShadow = '0 4px 12px rgba(245, 158, 11, 0.4)';
+                            }}
+                            onMouseLeave={e => {
+                              e.currentTarget.style.transform = 'translateY(0)';
+                              e.currentTarget.style.boxShadow = '0 2px 8px rgba(245, 158, 11, 0.3)';
+                            }}
+                          >
+                            <Mail size={18} /> HR Contact
+                          </button>
+                        )}
                       </>
                     )}
                     {activeTab === 'applied' && (
                       <button 
-                        onClick={() => window.open(job.jobLink, '_blank')}
+                        onClick={() => {
+                            const url = job.jobLink?.startsWith('http') ? job.jobLink : `https://${job.jobLink}`;
+                            window.open(url, '_blank');
+                          }}
                         className="view-resume-btn"
                       >
                         <ExternalLink size={18} /> View Job
@@ -1496,6 +1535,124 @@ const NotifierJobs = () => {
         }}
         notification={interviewNotification}
       />
+
+      {/* HR Contact Modal */}
+      {hrContactModal && (
+        <div
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(0,0,0,0.5)', display: 'flex',
+            alignItems: 'center', justifyContent: 'center', zIndex: 1000
+          }}
+          onClick={() => { setHrContactModal(null); setCopiedField(null); }}
+        >
+          <div
+            style={{
+              background: theme === 'dark' ? '#1F2937' : 'white',
+              color: theme === 'dark' ? '#F3F4F6' : '#111827',
+              borderRadius: '16px', padding: '28px', maxWidth: '460px',
+              width: '90%', boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+              position: 'relative'
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <button
+              onClick={() => { setHrContactModal(null); setCopiedField(null); }}
+              style={{
+                position: 'absolute', top: '16px', right: '16px',
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: theme === 'dark' ? '#9CA3AF' : '#6B7280'
+              }}
+            >
+              <X size={20} />
+            </button>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+              <div style={{
+                background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
+                borderRadius: '10px', padding: '8px', display: 'flex'
+              }}>
+                <Mail size={20} color="white" />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>HR Contact</h3>
+                <p style={{ margin: 0, fontSize: '13px', color: theme === 'dark' ? '#9CA3AF' : '#6B7280' }}>
+                  {hrContactModal.companyName} — {hrContactModal.role}
+                </p>
+              </div>
+            </div>
+
+            {hrContactModal.hrContactEmail && (
+              <div style={{
+                background: theme === 'dark' ? '#374151' : '#F9FAFB',
+                borderRadius: '10px', padding: '14px', marginBottom: '12px',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+              }}>
+                <div>
+                  <div style={{ fontSize: '12px', fontWeight: 500, color: theme === 'dark' ? '#9CA3AF' : '#6B7280', marginBottom: '4px' }}>Email</div>
+                  <div style={{ fontSize: '14px', fontWeight: 500 }}>{hrContactModal.hrContactEmail}</div>
+                </div>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(hrContactModal.hrContactEmail);
+                    setCopiedField('email');
+                    setTimeout(() => setCopiedField(null), 2000);
+                  }}
+                  style={{
+                    background: copiedField === 'email'
+                      ? (theme === 'dark' ? '#065F46' : '#D1FAE5')
+                      : (theme === 'dark' ? '#4B5563' : '#E5E7EB'),
+                    border: 'none', borderRadius: '8px', padding: '8px',
+                    cursor: 'pointer', display: 'flex', alignItems: 'center',
+                    transition: 'all 0.2s'
+                  }}
+                  title="Copy to clipboard"
+                >
+                  {copiedField === 'email'
+                    ? <Check size={16} color="#10B981" />
+                    : <Copy size={16} color={theme === 'dark' ? '#D1D5DB' : '#6B7280'} />}
+                </button>
+              </div>
+            )}
+
+            {hrContactModal.hrContactApplyLinks && (
+              <div style={{
+                background: theme === 'dark' ? '#374151' : '#F9FAFB',
+                borderRadius: '10px', padding: '14px',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+              }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '12px', fontWeight: 500, color: theme === 'dark' ? '#9CA3AF' : '#6B7280', marginBottom: '4px' }}>Apply Link</div>
+                  <div style={{
+                    fontSize: '14px', fontWeight: 500,
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+                  }}>{hrContactModal.hrContactApplyLinks}</div>
+                </div>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(hrContactModal.hrContactApplyLinks);
+                    setCopiedField('link');
+                    setTimeout(() => setCopiedField(null), 2000);
+                  }}
+                  style={{
+                    background: copiedField === 'link'
+                      ? (theme === 'dark' ? '#065F46' : '#D1FAE5')
+                      : (theme === 'dark' ? '#4B5563' : '#E5E7EB'),
+                    border: 'none', borderRadius: '8px', padding: '8px',
+                    cursor: 'pointer', display: 'flex', alignItems: 'center',
+                    flexShrink: 0, marginLeft: '12px', transition: 'all 0.2s'
+                  }}
+                  title="Copy to clipboard"
+                >
+                  {copiedField === 'link'
+                    ? <Check size={16} color="#10B981" />
+                    : <Copy size={16} color={theme === 'dark' ? '#D1D5DB' : '#6B7280'} />}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

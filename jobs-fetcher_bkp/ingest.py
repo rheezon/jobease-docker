@@ -87,54 +87,101 @@ class TelegramIngestionService:
         
         return hashlib.sha256(normalized.encode('utf-8')).hexdigest()
     
-    def _get_db_connection(self):
-        """Get MySQL connection from environment variables"""
-        return mysql.connector.connect(
-            host=os.getenv('MYSQL_HOST', 'localhost'),
-            port=int(os.getenv('MYSQL_PORT', 3306)),
-            user=os.getenv('MYSQL_USER'),
-            password=os.getenv('MYSQL_PASSWORD'),
-            database=os.getenv('MYSQL_DB')
-        )
-    
     def _validate_config(self):
         """Validate required configuration"""
-        if not self.session_string:
-            self.logger.error("TELEGRAM_SESSION_STRING not found in environment")
+        if not self.session_string or not self.session_string.strip():
+            self.logger.error("TELEGRAM_SESSION_STRING not found or empty in environment")
+            self.logger.error("To generate a new session, run: python generate_session.py")
             return False
         
         if not self.groups:
             self.logger.error("No groups configured")
             return False
         
-        if not os.getenv('MYSQL_HOST') or not os.getenv('MYSQL_USER') or not os.getenv('MYSQL_PASSWORD') or not os.getenv('MYSQL_DB'):
-            self.logger.error("MySQL configuration not found. Set MYSQL_HOST, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DB")
+        if not os.getenv('DATABASE_URL'):
+            self.logger.error("DATABASE_URL not found in environment")
             return False
         
         return True
     
     def ensure_tables_exist(self):
-        """Create database tables if they don't exist"""
+        """Create database tables if they don't exist and add foreign key if missing"""
+        database_url = os.getenv('DATABASE_URL')
+        if not database_url:
+            self.logger.error("DATABASE_URL not found for table creation")
+            return
+        
         try:
-            conn = self._get_db_connection()
+            # Parse MySQL connection URL
+            url_parts = database_url.replace('mysql+mysqlconnector://', '').replace('mysql://', '').split('/')
+            auth_host = url_parts[0]
+            database = url_parts[1] if len(url_parts) > 1 else 'test'
+            
+            auth, host_port = auth_host.rsplit('@', 1)
+            username, password = auth.split(':', 1)
+            password = unquote(password)
+            
+            host = host_port.split(':')[0]
+            port = int(host_port.split(':')[1]) if ':' in host_port else 3306
+            
+            conn = mysql.connector.connect(
+                host=host,
+                port=port,
+                user=username,
+                password=password,
+                database=database
+            )
             cursor = conn.cursor()
             
-            # Create jobs table with exact schema
+            # Create job_hashes table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS job_hashes (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    text_hash VARCHAR(64) UNIQUE NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            # Create jobs table with proper schema
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS jobs (
                     id BIGINT AUTO_INCREMENT PRIMARY KEY,
-                    created_at DATETIME(6) NOT NULL,
+                    job TEXT,
+                    job_timestamp DATETIME,
+                    processed BIT(1) DEFAULT 0,
+                    timestamp DATETIME,
+                    created_at DATETIME,
                     hash_id BIGINT,
-                    job VARCHAR(5000) NOT NULL,
-                    job_timestamp DATETIME(6),
-                    processed BIT(1) NOT NULL,
-                    timestamp DATETIME(6) NOT NULL,
                     INDEX idx_hash_id (hash_id)
                 )
             """)
             
+            # Add hash_id column if it doesn't exist
+            try:
+                cursor.execute("ALTER TABLE jobs ADD COLUMN hash_id BIGINT")
+                self.logger.info("Added hash_id column to jobs table")
+            except mysql.connector.Error as e:
+                if "Duplicate column name" in str(e):
+                    pass  # Column already exists
+                else:
+                    raise
+            
+            # Add foreign key constraint if it doesn't exist
+            try:
+                cursor.execute("""
+                    ALTER TABLE jobs ADD CONSTRAINT fk_jobs_hash_id 
+                    FOREIGN KEY (hash_id) REFERENCES job_hashes(id) 
+                    ON DELETE SET NULL ON UPDATE CASCADE
+                """)
+                self.logger.info("Added foreign key constraint to jobs table")
+            except mysql.connector.Error as e:
+                if "Duplicate foreign key constraint" in str(e) or "already exists" in str(e):
+                    pass  # Constraint already exists
+                else:
+                    raise
+            
             conn.commit()
-            self.logger.info("Database schema ensured: jobs")
+            self.logger.info("Database schema ensured: job_hashes, jobs with foreign key")
             
         except Exception as e:
             self.logger.error(f"Error ensuring database schema: {e}")
@@ -154,6 +201,12 @@ class TelegramIngestionService:
                 self.logger.error("TELEGRAM_API_ID or TELEGRAM_API_HASH not found")
                 return False
             
+            # Check if session string is provided
+            if not self.session_string or not self.session_string.strip():
+                self.logger.error("TELEGRAM_SESSION_STRING is empty or not set")
+                self.logger.error("To generate a new session, run: python generate_session.py")
+                return False
+            
             self.client = TelegramClient(StringSession(self.session_string), int(api_id), api_hash)
             
             self.logger.info("Connecting to Telegram")
@@ -161,6 +214,11 @@ class TelegramIngestionService:
             
             if not await self.client.is_user_authorized():
                 self.logger.error("Session invalid or expired")
+                self.logger.error("Possible causes:")
+                self.logger.error("  1. Session string is invalid or corrupted")
+                self.logger.error("  2. Session expired (Telegram sessions can expire)")
+                self.logger.error("  3. Session revoked (logged out from another device)")
+                self.logger.error("Solution: Regenerate session by running: python generate_session.py")
                 return False
             
             self.logger.info("Successfully connected to Telegram")
@@ -168,6 +226,8 @@ class TelegramIngestionService:
             
         except Exception as e:
             self.logger.error(f"Error connecting to Telegram: {e}")
+            import traceback
+            self.logger.error(traceback.format_exc())
             return False
     
     async def find_group(self, group_name):
@@ -226,13 +286,36 @@ class TelegramIngestionService:
             return []
     
     def save_messages_to_db(self, messages):
-        """Save Telegram messages to jobs table"""
+        """Save messages using proper foreign key relationship"""
         if not messages:
             self.logger.info("No messages to save")
             return
         
+        database_url = os.getenv('DATABASE_URL')
+        
         try:
-            conn = self._get_db_connection()
+            # Parse MySQL connection URL
+            url_parts = database_url.replace('mysql+mysqlconnector://', '').replace('mysql://', '').split('/')
+            auth_host = url_parts[0]
+            database = url_parts[1] if len(url_parts) > 1 else 'test'
+            
+            # Split from the right to handle @ in password
+            auth, host_port = auth_host.rsplit('@', 1)
+            username, password = auth.split(':', 1)
+            
+            # URL decode the password
+            password = unquote(password)
+            
+            host = host_port.split(':')[0]
+            port = int(host_port.split(':')[1]) if ':' in host_port else 3306
+            
+            conn = mysql.connector.connect(
+                host=host,
+                port=port,
+                user=username,
+                password=password,
+                database=database
+            )
             cursor = conn.cursor()
             
             inserted_jobs = 0
@@ -240,28 +323,46 @@ class TelegramIngestionService:
             
             for msg in messages:
                 try:
-                    text_hash = hash(msg['text'])  # Simple hash for deduplication
+                    # Step 1: Generate normalized hash
+                    text_hash = self._generate_text_hash(msg['text'])
                     
-                    # Check if already exists
+                    # Step 2: Insert hash only if not exists (prevents duplicates)
                     cursor.execute(
-                        "SELECT id FROM jobs WHERE hash_id = %s",
+                        "INSERT IGNORE INTO job_hashes (text_hash) VALUES (%s)",
                         (text_hash,)
                     )
                     
-                    if cursor.fetchone():
+                    # Step 3: Fetch hash_id (always exists after INSERT IGNORE)
+                    cursor.execute(
+                        "SELECT id FROM job_hashes WHERE text_hash = %s",
+                        (text_hash,)
+                    )
+                    hash_result = cursor.fetchone()
+                    
+                    if not hash_result:
+                        self.logger.error(f"Critical error: hash_id not found for {text_hash[:16]}...")
                         skipped_jobs += 1
                         continue
                     
-                    # Insert job
+                    hash_id = hash_result[0]
+                    
+                    # Step 4: Insert job using hash_id (prevents duplicate jobs)
                     cursor.execute(
                         """
-                        INSERT INTO jobs (created_at, hash_id, job, job_timestamp, processed, timestamp)
-                        VALUES (NOW(6), %s, %s, %s, 0, %s)
+                        INSERT INTO jobs (job, job_timestamp, hash_id, processed, timestamp, created_at)
+                        SELECT %s, %s, %s, 0, %s, NOW()
+                        WHERE NOT EXISTS (
+                            SELECT 1 FROM jobs WHERE hash_id = %s
+                        )
                         """,
-                        (text_hash, msg['text'], msg['date'], msg['date'])
+                        (msg['text'], msg['date'], hash_id, msg['date'], hash_id)
                     )
                     
-                    inserted_jobs += 1
+                    # Step 5: Count results
+                    if cursor.rowcount > 0:
+                        inserted_jobs += 1
+                    else:
+                        skipped_jobs += 1
                         
                 except Exception as e:
                     self.logger.error(f"Error processing message: {e}")
@@ -269,10 +370,12 @@ class TelegramIngestionService:
                     continue
             
             conn.commit()
-            self.logger.info(f"Inserted {inserted_jobs} new jobs, skipped {skipped_jobs} duplicates")
+            self.logger.info(f"✅ Inserted {inserted_jobs} new jobs, skipped {skipped_jobs} duplicates")
             
         except Exception as e:
-            self.logger.error(f"Database error: {e}")
+            self.logger.error(f"❌ Database error: {e}")
+            import traceback
+            self.logger.error(traceback.format_exc())
         finally:
             if 'cursor' in locals():
                 cursor.close()
@@ -280,11 +383,32 @@ class TelegramIngestionService:
                 conn.close()
     
     def cleanup_old_processed(self):
-        """Delete processed jobs older than 7 days"""
+        """Delete processed jobs older than 7 days and orphaned hashes"""
+        database_url = os.getenv('DATABASE_URL')
+        
         try:
-            conn = self._get_db_connection()
+            # Parse MySQL connection URL
+            url_parts = database_url.replace('mysql+mysqlconnector://', '').replace('mysql://', '').split('/')
+            auth_host = url_parts[0]
+            database = url_parts[1] if len(url_parts) > 1 else 'test'
+            
+            auth, host_port = auth_host.rsplit('@', 1)
+            username, password = auth.split(':', 1)
+            password = unquote(password)
+            
+            host = host_port.split(':')[0]
+            port = int(host_port.split(':')[1]) if ':' in host_port else 3306
+            
+            conn = mysql.connector.connect(
+                host=host,
+                port=port,
+                user=username,
+                password=password,
+                database=database
+            )
             cursor = conn.cursor()
             
+            # Delete old processed jobs (foreign key will handle hash cleanup)
             cursor.execute(
                 """
                 DELETE FROM jobs
@@ -294,15 +418,28 @@ class TelegramIngestionService:
             )
             
             deleted_jobs = cursor.rowcount
+            
+            # Clean up orphaned hashes (no jobs reference them)
+            cursor.execute(
+                """
+                DELETE jh FROM job_hashes jh
+                LEFT JOIN jobs j ON jh.id = j.hash_id
+                WHERE j.hash_id IS NULL
+                  AND jh.created_at < (NOW() - INTERVAL 7 DAY)
+                """
+            )
+            
+            deleted_hashes = cursor.rowcount
+            
             conn.commit()
             
-            if deleted_jobs > 0:
-                self.logger.info(f"Cleanup: Deleted {deleted_jobs} old jobs")
+            if deleted_jobs > 0 or deleted_hashes > 0:
+                self.logger.info(f"🧹 Cleanup: Deleted {deleted_jobs} old jobs, {deleted_hashes} orphaned hashes")
             else:
-                self.logger.info("Cleanup: No old data to remove")
+                self.logger.info("🧹 Cleanup: No old data to remove")
             
         except Exception as e:
-            self.logger.error(f"Cleanup error: {e}")
+            self.logger.error(f"❌ Cleanup error: {e}")
         finally:
             if 'cursor' in locals():
                 cursor.close()

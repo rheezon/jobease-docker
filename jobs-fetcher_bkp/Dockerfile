@@ -23,7 +23,6 @@ RUN pip install --upgrade pip && pip install --no-cache-dir -r requirements.txt
 # Copy ONLY the needed project files
 COPY scheduler.py .
 COPY ingest.py .
-COPY linkedin_ingest.py .
 COPY generate_session.py .
 
 # Debug during build (you can remove later)

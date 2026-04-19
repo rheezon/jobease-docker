@@ -111,6 +111,7 @@ public class NotifierBackfillService {
                     notification.setRelevanceScore(score);
                     notification.setRelevanceReason((String) result.get("reason"));
                     notification.setOriginalJobPosting(job.getJob());
+                    notification.setJobId(job.getId());
                     notification.setApplied(false);
 
                     notificationRepository.save(notification);

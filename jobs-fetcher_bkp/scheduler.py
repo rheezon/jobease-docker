@@ -14,7 +14,6 @@ from urllib.parse import unquote
 from dotenv import load_dotenv
 import mysql.connector
 from ingest import run_fetcher_task
-from linkedin_ingest import run_linkedin_fetcher
 
 # Fix UTF-8 encoding for Windows console
 if sys.platform == 'win32':
@@ -41,13 +40,27 @@ logger = logging.getLogger('Scheduler')
 
 def get_last_fetch_time():
     """Get the last fetch time from database or default to 24 hours ago"""
+    database_url = os.getenv('DATABASE_URL')
+    
     try:
+        # Parse MySQL connection URL
+        url_parts = database_url.replace('mysql+mysqlconnector://', '').replace('mysql://', '').split('/')
+        auth_host = url_parts[0]
+        database = url_parts[1] if len(url_parts) > 1 else 'test'
+        
+        auth, host_port = auth_host.rsplit('@', 1)
+        username, password = auth.split(':', 1)
+        password = unquote(password)
+        
+        host = host_port.split(':')[0]
+        port = int(host_port.split(':')[1]) if ':' in host_port else 3306
+        
         conn = mysql.connector.connect(
-            host=os.getenv('MYSQL_HOST', 'localhost'),
-            port=int(os.getenv('MYSQL_PORT', 3306)),
-            user=os.getenv('MYSQL_USER'),
-            password=os.getenv('MYSQL_PASSWORD'),
-            database=os.getenv('MYSQL_DB')
+            host=host,
+            port=port,
+            user=username,
+            password=password,
+            database=database
         )
         cursor = conn.cursor()
         
@@ -82,43 +95,30 @@ def get_last_fetch_time():
 
 def run_task():
     """Execute the fetcher task"""
-    logger.info("-" * 60)
+    logger.info("=" * 60)
     logger.info("Starting scheduled fetch task")
-    logger.info("-" * 60)
+    logger.info("=" * 60)
     
-    # Task 1: Telegram job fetcher
+    # Get last fetch time from database
+    last_fetch_time = get_last_fetch_time()
+    
+    config = {
+        'last_fetched_at': last_fetch_time
+    }
+    
     try:
-        logger.info("[1/2] Running Telegram job fetcher")
-        last_fetch_time = get_last_fetch_time()
-        
-        config = {
-            'last_fetched_at': last_fetch_time
-        }
-        
         asyncio.run(run_fetcher_task(config))
-        logger.info("Telegram fetch completed")
+        logger.info("Task completed successfully")
         
+        # Run cleanup after fetch
         from ingest import TelegramIngestionService
         service = TelegramIngestionService()
         service.cleanup_old_processed()
         
     except Exception as e:
-        logger.error(f"Telegram fetch failed: {e}")
+        logger.error(f"Task failed: {e}")
         import traceback
         logger.error(traceback.format_exc())
-    
-    # Task 2: LinkedIn job fetcher
-    try:
-        logger.info("[2/2] Running LinkedIn job fetcher")
-        run_linkedin_fetcher()
-        logger.info("LinkedIn fetch completed")
-        
-    except Exception as e:
-        logger.error(f"LinkedIn fetch failed: {e}")
-        import traceback
-        logger.error(traceback.format_exc())
-    
-    logger.info("All tasks completed")
 
 def main():
     """Main scheduler loop"""

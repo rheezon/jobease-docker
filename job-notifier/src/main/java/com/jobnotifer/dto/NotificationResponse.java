@@ -29,7 +29,10 @@ public class NotificationResponse {
     private String originalJobPosting;
     private LocalDateTime createdAt;
     private Boolean applied;
-    
+    private Long jobId;
+    private String hrContactEmail;
+    private String hrContactApplyLinks;
+
     public static NotificationResponse fromEntity(Notification notification) {
         NotificationResponse response = new NotificationResponse();
         response.setId(notification.getId());
@@ -54,6 +57,7 @@ public class NotificationResponse {
         response.setOriginalJobPosting(notification.getOriginalJobPosting());
         response.setCreatedAt(notification.getCreatedAt());
         response.setApplied(notification.getApplied());
+        response.setJobId(notification.getJobId());
         return response;
     }
 }

@@ -68,7 +68,10 @@ public class Notification {
     
     @Column(length = 5000)
     private String originalJobPosting;
-    
+
+    @Column(name = "job_id")
+    private Long jobId;
+
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
