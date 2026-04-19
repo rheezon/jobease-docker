@@ -30,6 +30,12 @@ public class User {
     
     @Column(nullable = false)
     private String fullName;
+
+    /**
+     * Email/password accounts: false until verified. Google sign-up sets true.
+     * Null is treated as verified for legacy rows created before this column existed.
+     */
+    private Boolean emailVerified;
     
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Notifier> notifiers = new ArrayList<>();

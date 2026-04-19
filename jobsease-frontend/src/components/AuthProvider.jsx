@@ -92,8 +92,11 @@ export const AuthProvider = ({ children }) => {
   const signup = async (email, password, fullName) => {
     try {
       const response = await authService.signup(email, password, fullName);
-      const { token, user } = response;
+      if (response.requiresEmailVerification) {
+        return response;
+      }
 
+      const { token, user } = response;
       localStorage.setItem('token', token);
 
       const userData = { id: user.id, email: user.email, fullName: user.fullName, onboardingCompleted: false };

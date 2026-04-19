@@ -1,13 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useOutletContext } from 'react-router-dom';
 import { notifierService, userInfoService } from '../services/api';
-import { extractResumeData, formatResumeData, generateLatexFromData } from '../utils/resumeExtraction';
-import { Upload, FileText, ArrowLeft, AlertCircle, Save as SaveIcon, Trash2, X, ChevronDown, Moon, Sun, User as UserIcon } from 'lucide-react';
+import { FileText, Save as SaveIcon, Trash2, X } from 'lucide-react';
 import { useAuth } from '../components/AuthProvider';
 import ConfirmDialog from '../components/ConfirmDialog';
+import ResumeIntakePanel from '../components/ResumeIntakePanel';
 
 const schema = yup.object({
   name: yup.string().required('Notifier name is required'),
@@ -22,48 +22,21 @@ const schema = yup.object({
 });
 
 const CreateNotifier = () => {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
+  const { refreshSidebarCounts, navigateWithGuard, registerNotifierFormGuard } = useOutletContext() || {};
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [resumeFile, setResumeFile] = useState(null);
   const [resumeFileName, setResumeFileName] = useState('');
-  const [resumeMode, setResumeMode] = useState('augment'); // 'augment' | 'upload'
   const [searchParams] = useSearchParams();
   const draftIdParam = searchParams.get('draftId');
   const [draftId, setDraftId] = useState(draftIdParam ? String(draftIdParam) : '');
-  const [showUserMenu, setShowUserMenu] = useState(false);
-  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
-  const [confirmDialog, setConfirmDialog] = useState({
-    isOpen: false,
-    title: '',
-    message: '',
-    onConfirm: () => {},
-    onCancel: null,
-    variant: 'danger'
-  });
+  const [leaveNavOpen, setLeaveNavOpen] = useState(false);
+  const [baselineVersion, setBaselineVersion] = useState(0);
+  const leaveResolverRef = useRef(null);
+  const baselineRef = useRef(null);
+  const isDirtyRef = useRef(false);
   const [educationRecords, setEducationRecords] = useState([]);
   const navigate = useNavigate();
-
-  const toggleTheme = () => {
-    const newTheme = theme === 'light' ? 'dark' : 'light';
-    setTheme(newTheme);
-    localStorage.setItem('theme', newTheme);
-    document.documentElement.setAttribute('data-theme', newTheme);
-  };
-
-  const handleLogout = () => {
-    setConfirmDialog({
-      isOpen: true,
-      title: 'Logout',
-      message: 'Are you sure you want to logout?',
-      variant: 'warning',
-      confirmText: 'Logout',
-      onConfirm: () => {
-        logout();
-        navigate('/login');
-      }
-    });
-  };
 
   // Skills state
   const [skills, setSkills] = useState([]);
@@ -91,15 +64,59 @@ const CreateNotifier = () => {
     'Version Control', 'Git', 'SVN', 'Mercurial', 'GitHub', 'GitLab', 'Bitbucket'
   ];
 
-  const { register, handleSubmit, formState: { errors }, setValue, getValues } = useForm({
+  const { register, handleSubmit, formState: { errors }, setValue, getValues, watch } = useForm({
     resolver: yupResolver(schema),
     defaultValues: { additionalPreferences: '' },
   });
+  const watched = watch();
+
+  const snapshotForm = () =>
+    JSON.stringify({
+      ...getValues(),
+      skills: [...skills].sort().join(','),
+      resumeFileName: resumeFileName || '',
+    });
+
+  const isDirty = useMemo(() => {
+    if (!baselineRef.current) return false;
+    return snapshotForm() !== baselineRef.current;
+    // snapshotForm closes over form state; watched drives recomputation
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- baseline snapshot compared to current
+  }, [watched, skills, resumeFileName, baselineVersion]);
+
+  isDirtyRef.current = isDirty;
+
+  useEffect(() => {
+    if (isLoading) return;
+    const id = requestAnimationFrame(() => {
+      baselineRef.current = snapshotForm();
+      setBaselineVersion((v) => v + 1);
+    });
+    return () => cancelAnimationFrame(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset baseline when load completes
+  }, [isLoading, draftIdParam]);
+
+  useEffect(() => {
+    if (!registerNotifierFormGuard) return undefined;
+    return registerNotifierFormGuard({
+      isDirty: () => isDirtyRef.current,
+      promptLeave: () =>
+        new Promise((resolve) => {
+          if (!isDirtyRef.current) {
+            resolve(true);
+            return;
+          }
+          leaveResolverRef.current = resolve;
+          setLeaveNavOpen(true);
+        }),
+    });
+  }, [registerNotifierFormGuard]);
 
   useEffect(() => {
     if (draftIdParam) {
       loadDraft(draftIdParam);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadDraft stable for draft id param
   }, [draftIdParam]);
 
   useEffect(() => {
@@ -115,7 +132,7 @@ const CreateNotifier = () => {
         const records = await userInfoService.getAll();
         setEducationRecords(records || []);
       } catch (err) {
-        try { console.error('[ERROR] Failed to fetch education records', { error: String(err?.message || err) }); } catch {}
+        console.error('[ERROR] Failed to fetch education records', { error: String(err?.message || err) });
       }
     };
     fetchEducation();
@@ -194,21 +211,18 @@ const CreateNotifier = () => {
   };
 
 
-  const saveDraft = async () => {
+  const persistDraft = async () => {
     const data = getValues();
-    
-    // Only validate notifier name for drafts
     if (!data.name || data.name.trim() === '') {
       setError('Please enter a notifier name before saving draft');
-      return;
+      throw new Error('name-required');
     }
 
     setIsLoading(true);
     setError('');
-    
+
     try {
       const skillsString = skills.join(', ');
-      
       const draftData = {
         ...data,
         skills: skillsString || '',
@@ -222,48 +236,51 @@ const CreateNotifier = () => {
         await notifierService.update(draftId, draftData);
       } else {
         const createdDraft = await notifierService.create(draftData);
-        setDraftId(createdDraft.id);
+        setDraftId(String(createdDraft.id));
       }
-      
-      navigate('/dashboard');
-    } catch (err) {
-      setError(err.message || 'Failed to save draft');
+      refreshSidebarCounts?.();
+      requestAnimationFrame(() => {
+        baselineRef.current = snapshotForm();
+        setBaselineVersion((v) => v + 1);
+      });
+    } catch (e) {
+      setError(e.message || 'Failed to save draft');
+      throw e;
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleBackToDashboard = () => {
-    setConfirmDialog({
-      isOpen: true,
-      title: 'Save Draft',
-      message: 'Do you want to save this notifier as a draft before leaving?',
-      variant: 'warning',
-      confirmText: 'Save Draft',
-      cancelText: 'Discard',
-      onConfirm: async () => {
-        await saveDraft();
-        navigate('/dashboard');
-      },
-      onCancel: () => {
-        navigate('/dashboard');
+  const saveDraft = async () => {
+    try {
+      await persistDraft();
+      navigate('/dashboard');
+    } catch (err) {
+      if (err?.message !== 'name-required') {
+        setError(err.message || 'Failed to save draft');
       }
-    });
+    }
   };
 
-  const handleFileUpload = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      setResumeFile(file);
-      setResumeFileName(file.name);
-      extractResumeData(file)
-        .then(raw => {
-          const formatted = formatResumeData(raw);
-          const latex = generateLatexFromData(formatted);
-          setValue('resumeLatex', latex);
-        })
-        .catch(() => {
-        });
+  const finishLeave = (allow) => {
+    const r = leaveResolverRef.current;
+    leaveResolverRef.current = null;
+    setLeaveNavOpen(false);
+    r?.(allow);
+  };
+
+  const handleNotifierResumeAutofill = (patch) => {
+    if (!patch?.setValue) return;
+    Object.entries(patch.setValue).forEach(([key, val]) => {
+      if (val !== undefined && val !== null && String(val).trim() !== '') {
+        setValue(key, val);
+      }
+    });
+    if (Array.isArray(patch.skills) && patch.skills.length > 0) {
+      setSkills(patch.skills);
+    }
+    if (Object.prototype.hasOwnProperty.call(patch, 'resumeFileName')) {
+      setResumeFileName(patch.resumeFileName || '');
     }
   };
 
@@ -298,6 +315,7 @@ const CreateNotifier = () => {
       }
       
       navigate('/dashboard');
+      refreshSidebarCounts?.();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -307,52 +325,12 @@ const CreateNotifier = () => {
 
   return (
     <div className="create-notifier-container">
-      <header className="dashboard-header">
-        <div className="header-left">
-          <button className="back-btn" onClick={handleBackToDashboard}>
-            <ArrowLeft size={20} />
-            Back to Dashboard
-          </button>
-          <span className="logo-text">JobKick</span>
-        </div>
-        <div className="header-right" style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '16px' }}>
-          {draftId && (
-            <button type="button" className="action-btn secondary" onClick={saveDraft}>
-              <SaveIcon size={16} /> Save Draft
-            </button>
-          )}
-          <div className="theme-toggle-switch" onClick={toggleTheme} aria-label="Toggle theme" title="Toggle theme" role="button">
-            <div className={`toggle-track-theme ${theme === 'dark' ? 'active' : ''}`}>
-              <div className="toggle-thumb-theme">
-                {theme === 'light' ? <Sun size={28} /> : <Moon size={28} />}
-              </div>
-            </div>
-          </div>
-          <div className="user-profile" onClick={() => setShowUserMenu(v => !v)} style={{ cursor: 'pointer' }} aria-label="Open user menu" title="Open user menu" role="button">
-            <span className="welcome-text">{user?.fullName?.split(' ')[0] || 'User'}</span>
-            <div className="user-avatar">
-              {user?.profilePhoto ? (
-                <img src={user.profilePhoto} alt="Profile" className="avatar-img" />
-              ) : (
-                <div className="avatar-img">
-                  <UserIcon size={20} />
-                </div>
-              )}
-              <ChevronDown size={16} />
-            </div>
-          </div>
-          {showUserMenu && (
-            <div className="user-menu">
-              <button className="action-btn secondary" style={{ width: '100%' }} onClick={handleLogout}>Logout</button>
-            </div>
-          )}
-        </div>
-      </header>
-
       <div className="create-notifier-content">
         {error && <div className="error-message">{error}</div>}
 
         <form onSubmit={handleSubmit(onSubmit)} className="notifier-form">
+          <ResumeIntakePanel variant="notifier" user={user} onNotifierAutofill={handleNotifierResumeAutofill} />
+
           <div className="form-section">
             <h2>Notifier Information</h2>
             <div className="form-group">
@@ -645,95 +623,20 @@ const CreateNotifier = () => {
             </div>
           </div>
 
-          <div className="form-section">
-            <h2>Resume Upload</h2>
-            <div className="form-group" style={{ opacity: 0.5, pointerEvents: 'none' }}>
-              <label>Choose an option</label>
-              <div className="resume-options-grid">
-                <div
-                  className="resume-option-box"
-                  style={{
-                    border: resumeMode === 'augment' ? '2px solid #6366F1' : '1px solid #E5E7EB',
-                    borderRadius: 12,
-                    padding: 16,
-                    cursor: 'not-allowed'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    {resumeMode === 'augment' && (
-                      <span style={{
-                        width: 10,
-                        height: 10,
-                        background: '#6366F1',
-                        borderRadius: '50%'
-                      }} />
-                    )}
-                    <div>
-                      <div style={{ fontWeight: 600 }}>Use existing resume</div>
-                      <div className="resume-option-subtitle">Auto-augment with this notifier's skills and details</div>
-                    </div>
-                  </div>
-                </div>
-
-                <div
-                  className="resume-option-box"
-                  style={{
-                    border: resumeMode === 'upload' ? '2px solid #6366F1' : '1px solid #E5E7EB',
-                    borderRadius: 12,
-                    padding: 16,
-                    cursor: 'not-allowed'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    {resumeMode === 'upload' && (
-                      <span style={{
-                        width: 10,
-                        height: 10,
-                        background: '#6366F1',
-                        borderRadius: '50%'
-                      }} />
-                    )}
-                    <div>
-                      <div style={{ fontWeight: 600 }}>Upload a different resume</div>
-                      <div className="resume-option-subtitle">Attach a resume tailored for this role</div>
-                    </div>
-                  </div>
-                  {resumeMode === 'upload' && (
-                    <div className="resume-upload" style={{ marginTop: 12 }}>
-                      <label htmlFor="resumeFile" className="file-upload-label">
-                        <Upload size={20} />
-                        Upload Resume (PDF/DOC)
-                      </label>
-                      <input
-                        type="file"
-                        id="resumeFile"
-                        accept=".pdf,.doc,.docx"
-                        onChange={handleFileUpload}
-                        className="file-input"
-                        disabled
-                      />
-                      {resumeFileName && (
-                        <div className="file-info" style={{ marginTop: 8 }}>
-                          <FileText size={16} />
-                          <span>{resumeFileName}</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
+          {resumeFileName ? (
+            <div className="form-section" style={{ paddingBottom: 8 }}>
+              <p className="field-note" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <FileText size={16} />
+                Last resume file reference: <strong>{resumeFileName}</strong>
+              </p>
             </div>
-            <div className="resume-disabled-alert">
-              <AlertCircle size={16} style={{ display: 'inline', marginRight: '0.5rem' }} />
-              <strong>Resume upload is currently disabled.</strong> This feature will be available soon.
-            </div>
-          </div>
+          ) : null}
 
           <div className="form-actions" style={{ display: 'flex', gap: '12px', justifyContent: 'space-between', alignItems: 'center' }}>
             <button 
               type="button" 
               className="cancel-button" 
-              onClick={() => navigate('/dashboard')}
+              onClick={() => (navigateWithGuard ? navigateWithGuard('/dashboard') : navigate('/dashboard'))}
               disabled={isLoading}
               style={{
                 padding: '12px 24px',
@@ -791,15 +694,24 @@ const CreateNotifier = () => {
       </div>
       
       <ConfirmDialog
-        isOpen={confirmDialog.isOpen}
-        onClose={() => setConfirmDialog({ ...confirmDialog, isOpen: false })}
-        onConfirm={confirmDialog.onConfirm}
-        onCancel={confirmDialog.onCancel}
-        title={confirmDialog.title}
-        message={confirmDialog.message}
-        variant={confirmDialog.variant}
-        confirmText={confirmDialog.confirmText}
-        cancelText={confirmDialog.cancelText}
+        isOpen={leaveNavOpen}
+        closeOnOverlayClick={false}
+        title="Leave Add Notifier?"
+        message="You have unsaved changes. Save as a draft, discard them, or stay on this page."
+        variant="warning"
+        cancelText="Stay"
+        onCancel={() => finishLeave(false)}
+        middleText="Discard"
+        onMiddle={() => finishLeave(true)}
+        confirmText="Save draft"
+        onConfirm={async () => {
+          try {
+            await persistDraft();
+            finishLeave(true);
+          } catch {
+            finishLeave(false);
+          }
+        }}
       />
     </div>
   );

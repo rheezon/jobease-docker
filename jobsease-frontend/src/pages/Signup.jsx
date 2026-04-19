@@ -5,6 +5,7 @@ import * as yup from 'yup';
 import { useAuth } from '../components/AuthProvider';
 import { useNavigate, Link } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
+import { authService } from '../services/api';
 
 const schema = yup.object({
   fullName: yup.string().required('Full name is required'),
@@ -20,6 +21,11 @@ const Signup = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [verificationSent, setVerificationSent] = useState(false);
+  const [pendingEmail, setPendingEmail] = useState('');
+  const [verifyMessage, setVerifyMessage] = useState('');
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendFeedback, setResendFeedback] = useState('');
   
   const { signup, loginWithGoogle } = useAuth();
   const googleDivRef = useRef(null);
@@ -39,7 +45,13 @@ const Signup = () => {
     setError('');
     
     try {
-      await signup(data.email, data.password, data.fullName);
+      const result = await signup(data.email, data.password, data.fullName);
+      if (result?.requiresEmailVerification) {
+        setPendingEmail(data.email);
+        setVerifyMessage(result.message || 'Check your email to verify your account.');
+        setVerificationSent(true);
+        return;
+      }
       navigate('/dashboard');
     } catch (err) {
       setError(err.message);
@@ -160,6 +172,44 @@ const Signup = () => {
 
           <div style={{ height: '1px', background: '#E1E8ED', margin: '12px 0 16px' }} />
 
+          {verificationSent ? (
+            <div className="auth-form" style={{ marginTop: '8px' }}>
+              <div className="success-message" role="status">
+                <p style={{ margin: '0 0 12px' }}>{verifyMessage}</p>
+                <p style={{ margin: 0, fontSize: '0.95rem', opacity: 0.9 }}>
+                  We sent the link to <strong>{pendingEmail}</strong>. After you verify, you can log in.
+                </p>
+              </div>
+              {resendFeedback && (
+                <div className={resendFeedback.startsWith('Could not') ? 'error-message' : 'success-message'} style={{ marginTop: '12px' }}>
+                  {resendFeedback}
+                </div>
+              )}
+              <button
+                type="button"
+                className="auth-submit-btn"
+                style={{ marginTop: '16px' }}
+                disabled={resendLoading}
+                onClick={async () => {
+                  setResendFeedback('');
+                  setResendLoading(true);
+                  try {
+                    const data = await authService.resendVerification(pendingEmail);
+                    setResendFeedback(data?.message || 'If an unverified account exists, we sent a new link.');
+                  } catch (e) {
+                    setResendFeedback(e.message || 'Could not resend. Try again later.');
+                  } finally {
+                    setResendLoading(false);
+                  }
+                }}
+              >
+                {resendLoading ? 'Sending…' : 'Resend verification email'}
+              </button>
+              <p style={{ marginTop: '20px', textAlign: 'center' }}>
+                <Link to="/login" className="auth-link">Back to log in</Link>
+              </p>
+            </div>
+          ) : (
           <form onSubmit={handleSubmit(onSubmit)} className="auth-form">
             {error && <div className="error-message">{error}</div>}
             
@@ -237,11 +287,17 @@ const Signup = () => {
               {isLoading ? 'Creating Account...' : 'Sign Up'}
             </button>
           </form>
+          )}
 
           <div className="auth-footer">
             <p className="terms-text">
               By continuing you accept our standard <span className="terms-link" aria-disabled="true">terms and conditions</span> and our <span className="terms-link" aria-disabled="true">privacy policy</span>.
             </p>
+            {!verificationSent && (
+              <p className="terms-text" style={{ marginBottom: '12px' }}>
+                If you already signed up but did not verify, submit the same email and password again — we will send a new verification link.
+              </p>
+            )}
             <p>
               Already have an account? <Link to="/login" className="auth-link">Log in</Link>
             </p>

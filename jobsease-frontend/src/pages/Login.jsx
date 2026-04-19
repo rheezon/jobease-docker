@@ -3,8 +3,9 @@ import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { useAuth } from '../components/AuthProvider';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
+import { authService } from '../services/api';
 
 const schema = yup.object({
   email: yup.string().email('Invalid email').required('Email is required'),
@@ -15,7 +16,12 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  
+  const [showVerifyHelp, setShowVerifyHelp] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendMessage, setResendMessage] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [verifyFromEmailLink, setVerifyFromEmailLink] = useState(null);
+
   const { login, loginWithGoogle } = useAuth();
   const googleDivRef = useRef(null);
   const [googleError, setGoogleError] = useState('');
@@ -24,6 +30,7 @@ const Login = () => {
   const {
     register,
     handleSubmit,
+    getValues,
     formState: { errors },
   } = useForm({
     resolver: yupResolver(schema),
@@ -32,16 +39,37 @@ const Login = () => {
   const onSubmit = async (data) => {
     setIsLoading(true);
     setError('');
-    
+    setShowVerifyHelp(false);
+    setResendMessage('');
+
     try {
       await login(data.email, data.password);
       navigate('/dashboard');
     } catch (err) {
-      setError(err.message);
+      const msg = err.message || '';
+      setError(msg);
+      setShowVerifyHelp(/verify your email/i.test(msg));
     } finally {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    const ev = searchParams.get('emailVerified');
+    if (ev !== '1' && ev !== '0') {
+      return;
+    }
+    if (ev === '1') {
+      setVerifyFromEmailLink({ ok: true });
+    } else {
+      const reason = searchParams.get('verifyReason');
+      setVerifyFromEmailLink({ ok: false, reason });
+    }
+    const next = new URLSearchParams(searchParams);
+    next.delete('emailVerified');
+    next.delete('verifyReason');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     setGoogleError('');
@@ -157,7 +185,55 @@ const Login = () => {
           <div style={{ height: '1px', background: '#E1E8ED', margin: '12px 0 16px' }} />
 
           <form onSubmit={handleSubmit(onSubmit)} className="auth-form">
+            {verifyFromEmailLink?.ok === true && (
+              <div className="success-message" style={{ textAlign: 'center', marginBottom: '12px' }} role="status">
+                Your email is verified. You can sign in now.
+              </div>
+            )}
+            {verifyFromEmailLink?.ok === false && (
+              <div className="error-message" style={{ textAlign: 'center', marginBottom: '12px' }} role="alert">
+                {verifyFromEmailLink.reason === 'invalid_or_expired'
+                  ? 'That verification link is invalid or has expired. Use “Resend verification email” below or request a new link from sign up.'
+                  : 'Email verification failed. Use “Resend verification email” below or try signing up again.'}
+              </div>
+            )}
             {error && <div className="error-message" style={{ textAlign: 'center' }}>{error}</div>}
+
+            {showVerifyHelp && (
+              <div className="success-message" style={{ textAlign: 'left', marginTop: '8px' }} role="status">
+                <p style={{ margin: '0 0 10px', fontSize: '0.95rem' }}>
+                  You can send another verification link to the email you entered above.
+                </p>
+                {resendMessage && (
+                  <p style={{ margin: '0 0 10px', fontSize: '0.9rem', opacity: 0.95 }}>{resendMessage}</p>
+                )}
+                <button
+                  type="button"
+                  className="auth-submit-btn"
+                  style={{ marginTop: 0, padding: '10px 16px', fontSize: '0.95rem' }}
+                  disabled={resendLoading}
+                  onClick={async () => {
+                    const email = getValues('email')?.trim();
+                    if (!email) {
+                      setResendMessage('Enter your email in the field above first.');
+                      return;
+                    }
+                    setResendLoading(true);
+                    setResendMessage('');
+                    try {
+                      const data = await authService.resendVerification(email);
+                      setResendMessage(data?.message || 'If that account is unverified, we sent a new link.');
+                    } catch (e) {
+                      setResendMessage(e.message || 'Could not send. Try again later.');
+                    } finally {
+                      setResendLoading(false);
+                    }
+                  }}
+                >
+                  {resendLoading ? 'Sending…' : 'Resend verification email'}
+                </button>
+              </div>
+            )}
             
             <div className="form-group">
               <label htmlFor="email">Email</label>

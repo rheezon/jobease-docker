@@ -2,28 +2,21 @@ import { useState } from 'react';
 import { useAuth } from '../components/AuthProvider';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Settings as SettingsIcon, LogOut, User, ArrowLeft, 
-  Bell, Shield, Palette, Sun, Moon, Download, Trash2, ChevronDown
+  User,
+  Bell, Shield, Palette, Sun, Moon, Download, Trash2
 } from 'lucide-react';
 import { userService } from '../services/api';
 import ConfirmDialog from '../components/ConfirmDialog';
 
 const Settings = () => {
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
-  const [showUserMenu, setShowUserMenu] = useState(false);
   const [notifications, setNotifications] = useState({
     email: true,
     push: true,
     sms: false,
     weekly: true
   });
-  const [privacy, setPrivacy] = useState({
-    profileVisible: true,
-    showSkills: true,
-    showPreferences: false
-  });
-  
-  const { user, logout } = useAuth();
+  const { logout } = useAuth();
   const navigate = useNavigate();
   const [error, setError] = useState('');
   const [confirmDialog, setConfirmDialog] = useState({
@@ -36,31 +29,10 @@ const Settings = () => {
     confirmText: 'Confirm'
   });
 
-  const toggleTheme = () => {
-    const newTheme = theme === 'light' ? 'dark' : 'light';
-    setTheme(newTheme);
-    localStorage.setItem('theme', newTheme);
-    document.documentElement.setAttribute('data-theme', newTheme);
-  };
-
   const handleThemeChange = (newTheme) => {
     setTheme(newTheme);
     localStorage.setItem('theme', newTheme);
     document.documentElement.setAttribute('data-theme', newTheme);
-  };
-
-  const handleLogout = () => {
-    setConfirmDialog({
-      isOpen: true,
-      title: 'Logout',
-      message: 'Are you sure you want to logout?',
-      variant: 'warning',
-      confirmText: 'Logout',
-      onConfirm: () => {
-        logout();
-        navigate('/login');
-      }
-    });
   };
 
   const handleDeleteAccount = () => {
@@ -88,73 +60,8 @@ const Settings = () => {
     }));
   };
 
-  const handlePrivacyChange = (key) => {
-    setPrivacy(prev => ({
-      ...prev,
-      [key]: !prev[key]
-    }));
-  };
-
-  const handleBackToDashboard = () => {
-    navigate('/dashboard');
-  };
-
   return (
-    <div className="modern-dashboard">
-      {/* Header */}
-      <header className="dashboard-header">
-        <div className="header-left">
-          <div className="logo">
-            <span className="logo-text">JobKick</span>
-          </div>
-        </div>
-        
-        <div className="header-right" style={{ position: 'relative' }}>
-          <div className="theme-toggle-switch" onClick={toggleTheme} aria-label="Toggle theme" title="Toggle theme" role="button">
-            <div className={`toggle-track-theme ${theme === 'dark' ? 'active' : ''}`}>
-              <div className="toggle-thumb-theme">
-                {theme === 'light' ? <Sun size={28} /> : <Moon size={28} />}
-              </div>
-            </div>
-          </div>
-          <div className="user-profile" onClick={() => setShowUserMenu(v => !v)} style={{ cursor: 'pointer' }} aria-label="Open user menu" title="Open user menu" role="button">
-            <span className="welcome-text">{user?.fullName?.split(' ')[0] || 'User'}</span>
-            <div className="user-avatar">
-              {user?.profilePhoto ? (
-                <img src={user.profilePhoto} alt="Profile" className="avatar-img" />
-              ) : (
-                <div className="avatar-img">
-                  <User size={20} />
-                </div>
-              )}
-              <ChevronDown size={16} />
-            </div>
-          </div>
-          {showUserMenu && (
-            <div className="user-menu">
-              <button className="action-btn secondary" style={{ width: '100%' }} onClick={handleLogout}>Logout</button>
-            </div>
-          )}
-        </div>
-      </header>
-
-      <div className="dashboard-layout">
-        {/* Sidebar */}
-        <aside className="dashboard-sidebar">
-          <nav className="sidebar-nav">
-            <div className="nav-item" onClick={handleBackToDashboard}>
-              <ArrowLeft size={20} />
-              <span>Back to Dashboard</span>
-            </div>
-            <div className="nav-item active">
-              <SettingsIcon size={20} />
-              <span>Settings</span>
-            </div>
-          </nav>
-        </aside>
-
-        {/* Main Content */}
-        <main className="dashboard-main">
+    <>
           <div className="onboarding-section">
             <div className="section-header">
               <h1 className="section-title">Settings</h1>
@@ -654,8 +561,6 @@ const Settings = () => {
               </div>
             </div>
           </div>
-        </main>
-      </div>
       {/* Confirm dialog for logout/delete actions */}
       <ConfirmDialog
         isOpen={confirmDialog.isOpen}
@@ -667,7 +572,7 @@ const Settings = () => {
         variant={confirmDialog.variant}
         confirmText={confirmDialog.confirmText}
       />
-    </div>
+    </>
   );
 };
 

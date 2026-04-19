@@ -2,10 +2,9 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useOutletContext } from 'react-router-dom';
 import { notifierService, userInfoService } from '../services/api';
-import { extractResumeData, formatResumeData, generateLatexFromData } from '../utils/resumeExtraction';
-import { Upload, FileText, ArrowLeft, AlertCircle, X, Plus, ChevronDown, Moon, Sun, User as UserIcon } from 'lucide-react';
+import { FileText, AlertCircle, X, Plus } from 'lucide-react';
 import { useAuth } from '../components/AuthProvider';
 import ConfirmDialog from '../components/ConfirmDialog';
 
@@ -22,16 +21,13 @@ const schema = yup.object({
 });
 
 const EditNotifier = () => {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
+  const { refreshSidebarCounts } = useOutletContext() || {};
   const { id } = useParams();
   const [isLoading, setIsLoading] = useState(false);
   const [loadingNotifier, setLoadingNotifier] = useState(true);
   const [error, setError] = useState('');
-  const [resumeFile, setResumeFile] = useState(null);
   const [resumeFileName, setResumeFileName] = useState('');
-  const [resumeMode, setResumeMode] = useState('augment');
-  const [showUserMenu, setShowUserMenu] = useState(false);
-  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
   const [confirmDialog, setConfirmDialog] = useState({
     isOpen: false,
     title: '',
@@ -42,27 +38,6 @@ const EditNotifier = () => {
   });
   const [educationRecords, setEducationRecords] = useState([]);
   const navigate = useNavigate();
-
-  const toggleTheme = () => {
-    const newTheme = theme === 'light' ? 'dark' : 'light';
-    setTheme(newTheme);
-    localStorage.setItem('theme', newTheme);
-    document.documentElement.setAttribute('data-theme', newTheme);
-  };
-
-  const handleLogout = () => {
-    setConfirmDialog({
-      isOpen: true,
-      title: 'Logout',
-      message: 'Are you sure you want to logout?',
-      variant: 'warning',
-      confirmText: 'Logout',
-      onConfirm: () => {
-        logout();
-        navigate('/login');
-      }
-    });
-  };
 
   // Skills state
   const [skills, setSkills] = useState([]);
@@ -90,13 +65,14 @@ const EditNotifier = () => {
     'Version Control', 'Git', 'SVN', 'Mercurial', 'GitHub', 'GitLab', 'Bitbucket'
   ];
 
-  const { register, handleSubmit, formState: { errors }, setValue, getValues } = useForm({
+  const { register, handleSubmit, formState: { errors }, setValue } = useForm({
     resolver: yupResolver(schema),
     defaultValues: { additionalPreferences: '' },
   });
 
   useEffect(() => {
     loadNotifier();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   useEffect(() => {
@@ -112,7 +88,7 @@ const EditNotifier = () => {
         const records = await userInfoService.getAll();
         setEducationRecords(records || []);
       } catch (err) {
-        try { console.error('[ERROR] Failed to fetch education records', { error: String(err?.message || err) }); } catch {}
+        console.error('[ERROR] Failed to fetch education records', { error: String(err?.message || err) });
       }
     };
     fetchEducation();
@@ -133,7 +109,8 @@ const EditNotifier = () => {
       setValue('companiesPreference', notifier.companiesPreference || '');
       setValue('additionalPreferences', notifier.additionalPreferences || '');
       setValue('resumeLatex', notifier.resumeLatex || '');
-      
+      setResumeFileName(notifier.resumeFileName || '');
+
       // Handle skills - convert comma-separated string to array
       if (notifier.skills) {
         const skillsArray = typeof notifier.skills === 'string' 
@@ -188,27 +165,6 @@ const EditNotifier = () => {
     }
   };
 
-  const handleFileUpload = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      setResumeFile(file);
-      setResumeFileName(file.name);
-      extractResumeData(file)
-        .then(raw => {
-          const formatted = formatResumeData(raw);
-          const latex = generateLatexFromData(formatted);
-          setValue('resumeLatex', latex);
-        })
-        .catch(() => {
-          // ignore extraction errors
-        });
-    }
-  };
-
-  const handleBackToDashboard = () => {
-    navigate('/dashboard');
-  };
-
   const onSubmit = async (data) => {
     setIsLoading(true);
     setError('');
@@ -230,6 +186,7 @@ const EditNotifier = () => {
       };
       
       await notifierService.update(id, notifierData);
+      refreshSidebarCounts?.();
       navigate('/dashboard');
     } catch (err) {
       setError(err.message);
@@ -248,43 +205,6 @@ const EditNotifier = () => {
 
   return (
     <div className="create-notifier-container">
-      <header className="dashboard-header">
-        <div className="header-left">
-          <button className="back-btn" onClick={handleBackToDashboard}>
-            <ArrowLeft size={20} />
-            Back to Dashboard
-          </button>
-          <span className="logo-text">JobKick</span>
-        </div>
-        <div className="header-right" style={{ position: 'relative' }}>
-          <div className="theme-toggle-switch" onClick={toggleTheme} aria-label="Toggle theme" title="Toggle theme" role="button">
-            <div className={`toggle-track-theme ${theme === 'dark' ? 'active' : ''}`}>
-              <div className="toggle-thumb-theme">
-                {theme === 'light' ? <Sun size={28} /> : <Moon size={28} />}
-              </div>
-            </div>
-          </div>
-          <div className="user-profile" onClick={() => setShowUserMenu(v => !v)} style={{ cursor: 'pointer' }} aria-label="Open user menu" title="Open user menu" role="button">
-            <span className="welcome-text">{user?.fullName?.split(' ')[0] || 'User'}</span>
-            <div className="user-avatar">
-              {user?.profilePhoto ? (
-                <img src={user.profilePhoto} alt="Profile" className="avatar-img" />
-              ) : (
-                <div className="avatar-img">
-                  <UserIcon size={20} />
-                </div>
-              )}
-              <ChevronDown size={16} />
-            </div>
-          </div>
-          {showUserMenu && (
-            <div className="user-menu">
-              <button className="action-btn secondary" style={{ width: '100%' }} onClick={handleLogout}>Logout</button>
-            </div>
-          )}
-        </div>
-      </header>
-
       <div className="create-notifier-content">
         {error && <div className="error-message">{error}</div>}
 
@@ -602,7 +522,7 @@ const EditNotifier = () => {
               <div className="resume-options-grid">
                 <div
                   style={{
-                    border: resumeMode === 'augment' ? '2px solid #6366F1' : '1px solid #E5E7EB',
+                    border: '2px solid #6366F1',
                     borderRadius: 12,
                     padding: 16,
                     cursor: 'not-allowed',
@@ -610,14 +530,12 @@ const EditNotifier = () => {
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    {resumeMode === 'augment' && (
-                      <span style={{
-                        width: 10,
-                        height: 10,
-                        background: '#6366F1',
-                        borderRadius: '50%'
-                      }} />
-                    )}
+                    <span style={{
+                      width: 10,
+                      height: 10,
+                      background: '#6366F1',
+                      borderRadius: '50%'
+                    }} />
                     <div>
                       <div style={{ fontWeight: 600 }}>Use existing resume</div>
                       <div style={{ color: '#6B7280', fontSize: 13 }}>Auto-augment with this notifier's skills and details</div>
@@ -627,7 +545,7 @@ const EditNotifier = () => {
 
                 <div
                   style={{
-                    border: resumeMode === 'upload' ? '2px solid #6366F1' : '1px solid #E5E7EB',
+                    border: '1px solid #E5E7EB',
                     borderRadius: 12,
                     padding: 16,
                     cursor: 'not-allowed',
@@ -635,41 +553,11 @@ const EditNotifier = () => {
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    {resumeMode === 'upload' && (
-                      <span style={{
-                        width: 10,
-                        height: 10,
-                        background: '#6366F1',
-                        borderRadius: '50%'
-                      }} />
-                    )}
                     <div>
                       <div style={{ fontWeight: 600 }}>Upload a different resume</div>
                       <div style={{ color: '#6B7280', fontSize: 13 }}>Attach a resume tailored for this role</div>
                     </div>
                   </div>
-                  {resumeMode === 'upload' && (
-                    <div className="resume-upload" style={{ marginTop: 12 }}>
-                      <label htmlFor="resumeFile" className="file-upload-label">
-                        <Upload size={20} />
-                        Upload Resume (PDF/DOC)
-                      </label>
-                      <input
-                        type="file"
-                        id="resumeFile"
-                        accept=".pdf,.doc,.docx"
-                        onChange={handleFileUpload}
-                        className="file-input"
-                        disabled
-                      />
-                      {resumeFileName && (
-                        <div className="file-info" style={{ marginTop: 8 }}>
-                          <FileText size={16} />
-                          <span>{resumeFileName}</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </div>
               </div>
             </div>

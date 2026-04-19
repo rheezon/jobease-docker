@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../components/AuthProvider';
 import { notifierService, notificationService } from '../services/api';
 import {
   BarChart, Bar, LineChart, Line,
@@ -12,40 +11,21 @@ import 'react-big-calendar/lib/css/react-big-calendar.css';
 import {
   TrendingUp, Calendar as CalendarIcon, BarChart3,
   Briefcase, CheckCircle, Clock, AlertCircle, DollarSign,
-  Target, Award, Activity, ArrowLeft, Moon, Sun, User, ChevronDown
+  Target, Award, Activity
 } from 'lucide-react';
 
 const localizer = momentLocalizer(moment);
 
 const JobInsights = () => {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
   const [loading, setLoading] = useState(true);
   const [notifiers, setNotifiers] = useState([]);
   const [allJobs, setAllJobs] = useState([]);
-  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
-  const [showUserMenu, setShowUserMenu] = useState(false);
   const [dateRange, setDateRange] = useState('30'); // days
-
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-  }, [theme]);
 
   useEffect(() => {
     fetchAllData();
   }, []);
-
-  const toggleTheme = () => {
-    const newTheme = theme === 'light' ? 'dark' : 'light';
-    setTheme(newTheme);
-    localStorage.setItem('theme', newTheme);
-    document.documentElement.setAttribute('data-theme', newTheme);
-  };
-
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
 
   const fetchAllData = async () => {
     try {
@@ -61,7 +41,7 @@ const JobInsights = () => {
       const jobs = jobsArrays.flat();
       setAllJobs(jobs);
     } catch (err) {
-      try { console.error('[ERROR] Failed to fetch data for JobInsights', { error: String(err?.message || err) }); } catch {}
+      console.error('[ERROR] Failed to fetch data for JobInsights', { error: String(err?.message || err) });
     } finally {
       setLoading(false);
     }
@@ -178,53 +158,14 @@ const JobInsights = () => {
 
   if (loading) {
     return (
-      <div className="modern-dashboard">
-        <div className="loading">Loading insights...</div>
+      <div className="loading" style={{ padding: '3rem', textAlign: 'center' }}>
+        Loading insights...
       </div>
     );
   }
 
   return (
-    <div className="modern-dashboard">
-      {/* Header */}
-      <header className="dashboard-header">
-        <div className="header-left">
-          <button className="back-btn" onClick={() => navigate('/dashboard')}>
-            <ArrowLeft size={20} />
-            Back to Dashboard
-          </button>
-          <span className="logo-text">JobKick</span>
-        </div>
-        <div className="header-right" style={{ position: 'relative' }}>
-          <div className="theme-toggle-switch" onClick={toggleTheme} aria-label="Toggle theme" title="Toggle theme" role="button">
-            <div className={`toggle-track-theme ${theme === 'dark' ? 'active' : ''}`}>
-              <div className="toggle-thumb-theme">
-                {theme === 'light' ? <Sun size={28} /> : <Moon size={28} />}
-              </div>
-            </div>
-          </div>
-          <div className="user-profile" onClick={() => setShowUserMenu(v => !v)} style={{ cursor: 'pointer' }} aria-label="Open user menu" title="Open user menu" role="button">
-            <span className="welcome-text">{user?.fullName?.split(' ')[0] || 'User'}</span>
-            <div className="user-avatar">
-              {user?.profilePhoto ? (
-                <img src={user.profilePhoto} alt="Profile" className="avatar-img" />
-              ) : (
-                <div className="avatar-img">
-                  <User size={20} />
-                </div>
-              )}
-              <ChevronDown size={16} />
-            </div>
-          </div>
-          {showUserMenu && (
-            <div className="user-menu">
-              <button className="action-btn secondary" style={{ width: '100%' }} onClick={handleLogout}>Logout</button>
-            </div>
-          )}
-        </div>
-      </header>
-
-      <main className="dashboard-main insights-main">
+      <div className="dashboard-main insights-main">
         {/* Page Title */}
         <div style={{ marginBottom: '32px' }}>
           <h1 className="insights-page-title">
@@ -544,8 +485,7 @@ const JobInsights = () => {
           </div>
         </div>
 
-      </main>
-    </div>
+      </div>
   );
 };
 

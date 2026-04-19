@@ -4,18 +4,17 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Plus, Bell, Settings, LogOut, Briefcase, MapPin, DollarSign, 
   Search, Home, User, FileText, MessageCircle, Compass, 
-  Gift, ChevronDown, Filter, SortAsc, AlertCircle, CheckCircle,
+  Gift, ChevronDown, Filter, SortAsc, CheckCircle,
   X, Wifi, Building, Users, Star, Clock, TrendingUp, Eye, Trash2,
-  Upload, Download, Edit3, Save, Moon, Sun
+  Download, Edit3, Save, Moon, Sun
 } from 'lucide-react';
 import { notifierService, userInfoService } from '../services/api';
 import ConfirmDialog from '../components/ConfirmDialog';
+import ResumeIntakePanel from '../components/ResumeIntakePanel';
 
 const Onboarding = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [setResumeFile] = useState(null);
-  const [setResumePreview] = useState('');
   const [photoPreview, setPhotoPreview] = useState('');
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
@@ -185,11 +184,25 @@ const Onboarding = () => {
         setPhotoPreview(user.profilePhoto);
       }
       
-      if (user.resumeFileName) {
-        setResumePreview(user.resumeFileName);
-      }
     }
   }, [user]);
+
+  const handleResumeAutofill = (payload) => {
+    if (!payload?.formData) return;
+    setFormData((prev) => ({
+      ...prev,
+      ...payload.formData,
+      fullName: payload.formData.fullName || prev.fullName || user?.fullName || '',
+      email: user?.email || prev.email,
+      skills:
+        Array.isArray(payload.formData.skills) && payload.formData.skills.length > 0
+          ? payload.formData.skills
+          : prev.skills,
+    }));
+    if (payload.educationDetails?.length) {
+      setEducationDetails(payload.educationDetails);
+    }
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -240,14 +253,6 @@ const Onboarding = () => {
       if (skill && !formData.skills.includes(skill)) {
         addSkill(skill);
       }
-    }
-  };
-
-  const handleFileUpload = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      setResumeFile(file);
-      setResumePreview(file.name);
     }
   };
 
@@ -409,6 +414,8 @@ const Onboarding = () => {
 
           <form onSubmit={handleSubmit} className="onboarding-form">
             {error && <div className="error-message">{error}</div>}
+
+            <ResumeIntakePanel variant="onboarding" user={user} onOnboardingAutofill={handleResumeAutofill} />
 
             {/* Notifier Basic Information */}
             <div className="form-section">
@@ -620,6 +627,29 @@ const Onboarding = () => {
                 )}
               </div>
 
+              <div className="form-group full-width">
+                <label htmlFor="resumeLatex">Resume LaTeX (optional, editable)</label>
+                <textarea
+                  id="resumeLatex"
+                  name="resumeLatex"
+                  placeholder="Paste or refine LaTeX after using PDF / LaTeX intake above…"
+                  value={formData.resumeLatex}
+                  onChange={handleInputChange}
+                  rows={8}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    borderRadius: '8px',
+                    border: '1px solid #E5E7EB',
+                    fontSize: '13px',
+                    fontFamily: 'ui-monospace, monospace',
+                    resize: 'vertical',
+                    backgroundColor: '#F9FAFB',
+                  }}
+                />
+                <small className="field-note">Used to generate tailored resume PDFs for matched jobs.</small>
+              </div>
+
             </div>
 
             {/* Education Details Section */}
@@ -756,61 +786,6 @@ const Onboarding = () => {
                   style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #E5E7EB', fontSize: '14px', fontFamily: 'inherit', resize: 'vertical' }}
                 />
                 <small className="field-note">Describe any other preferences or requirements you have for this job search</small>
-              </div>
-            </div>
-
-            {/* Resume LaTeX Code Section */}
-            <div className="form-section">
-              <h3 className="form-section-title">Resume LaTeX Code (Optional)</h3>
-              <div className="form-group full-width">
-                <label htmlFor="resumeLatex">LaTeX Code for Resume</label>
-                <textarea
-                  id="resumeLatex"
-                  name="resumeLatex"
-                  placeholder="Paste your resume LaTeX code here..."
-                  value={formData.resumeLatex}
-                  onChange={handleInputChange}
-                  rows={10}
-                  style={{ 
-                    width: '100%', 
-                    padding: '0.75rem', 
-                    borderRadius: '8px', 
-                    border: '1px solid #E5E7EB', 
-                    fontSize: '13px', 
-                    fontFamily: 'monospace',
-                    resize: 'vertical',
-                    backgroundColor: '#F9FAFB'
-                  }}
-                />
-                <small className="field-note">Enter your resume in LaTeX format. This will be used to generate your resume PDF as per the job in the notifier.</small>
-              </div>
-            </div>
-
-            {/* Resume Upload - Disabled */}
-            <div className="form-section">
-              <h3 className="form-section-title">Resume Upload</h3>
-              <div className="resume-upload-section">
-                <div className="file-upload-area" style={{ opacity: 0.5, pointerEvents: 'none', cursor: 'not-allowed' }}>
-                  <input
-                    type="file"
-                    id="resume"
-                    accept=".pdf,.doc,.docx"
-                    onChange={handleFileUpload}
-                    className="file-input"
-                    disabled
-                  />
-                  <label htmlFor="resume" className="file-upload-label" style={{ cursor: 'not-allowed' }}>
-                    <Upload size={24} />
-                    <div className="upload-text">
-                      <span className="upload-title">Upload Your Resume</span>
-                      <span className="upload-subtitle">PDF, DOC, or DOCX files only (Max 10MB)</span>
-                    </div>
-                  </label>
-                </div>
-                <div style={{ marginTop: '1rem', padding: '0.75rem', background: '#FEF3C7', border: '1px solid #FCD34D', borderRadius: '8px', color: '#92400E' }}>
-                  <AlertCircle size={16} style={{ display: 'inline', marginRight: '0.5rem' }} />
-                  <strong>Resume upload is currently disabled.</strong> This feature will be available soon.
-                </div>
               </div>
             </div>
 

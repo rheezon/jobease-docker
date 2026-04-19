@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../components/AuthProvider';
 import { notifierService } from '../services/api';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useLocation, useSearchParams, useOutletContext } from 'react-router-dom';
 import { 
-  Plus, Bell, Settings as SettingsIcon, LogOut, Briefcase, MapPin, DollarSign, 
-  Search, Home, User, FileText, MessageCircle, Compass, 
-  Gift, ChevronDown, Filter, SortAsc, AlertCircle, CheckCircle,
-  X, Wifi, Building, Users, Star, Clock, TrendingUp, Eye, Trash2, ArrowLeft, Edit,
-  Moon, Sun, BarChart3, Menu
+  Plus, Briefcase, MapPin, DollarSign, 
+  Search, User, FileText, 
+  AlertCircle, CheckCircle,
+  X, Star, Clock, Eye, Trash2, Edit,
+  BarChart3
 } from 'lucide-react';
 import ConfirmDialog from '../components/ConfirmDialog';
 
@@ -16,17 +16,16 @@ const Dashboard = () => {
   const [drafts, setDrafts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState('notifiers');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') === 'drafts' ? 'drafts' : 'notifiers';
+  const { refreshSidebarCounts } = useOutletContext() || {};
   const [showProfileBanner, setShowProfileBanner] = useState(() => {
     // Only show banner if user hasn't seen it before
     const hasSeenBanner = localStorage.getItem('hasSeenWelcomeBanner');
     return !hasSeenBanner;
   });
-  const [showUserMenu, setShowUserMenu] = useState(false);
   const [togglingId, setTogglingId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState({
     isOpen: false,
     title: '',
@@ -39,17 +38,10 @@ const Dashboard = () => {
   const [draftsPage, setDraftsPage] = useState(1);
   const [pageSize, setPageSize] = useState(8);
   
-  const { user, logout, updateUserProfile } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const hasFetchedRef = useRef(false);
-
-  const toggleTheme = () => {
-    const newTheme = theme === 'light' ? 'dark' : 'light';
-    setTheme(newTheme);
-    localStorage.setItem('theme', newTheme);
-    document.documentElement.setAttribute('data-theme', newTheme);
-  };
 
   useEffect(() => {
     // Only fetch if user is available
@@ -67,7 +59,9 @@ const Dashboard = () => {
           createdFromState = JSON.parse(cached);
           localStorage.removeItem('lastCreatedNotifier');
         }
-      } catch {}
+      } catch {
+        /* ignore cache parse errors */
+      }
     }
     
     // Fetch notifiers for display (guard inside function prevents duplicates)
@@ -75,7 +69,7 @@ const Dashboard = () => {
       hasFetchedRef.current = true;
       // Clear location state after processing to prevent re-renders
       if (location.state?.createdNotifier || location.state?.refreshNotifiers) {
-        navigate(location.pathname, { replace: true, state: null });
+        navigate(location.pathname + location.search, { replace: true, state: null });
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -104,12 +98,13 @@ const Dashboard = () => {
         const exists = activeNotifiers.some(n => n.id === createdFromState.id);
         if (!exists) {
           activeNotifiers = [createdFromState, ...activeNotifiers];
-          setActiveTab('notifiers');
+          setSearchParams({}, { replace: true });
         }
       }
       
       setNotifiers(activeNotifiers);
       setDrafts(draftNotifiers);
+      refreshSidebarCounts?.();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -164,45 +159,6 @@ const Dashboard = () => {
     }
   };
 
-  const handleLogout = () => {
-    setConfirmDialog({
-      isOpen: true,
-      title: 'Logout',
-      message: 'Are you sure you want to logout?',
-      variant: 'warning',
-      confirmText: 'Logout',
-      onConfirm: () => {
-        logout();
-        navigate('/login');
-      }
-    });
-  };
-
-  // Utility to format salary expectation from value to INR LPA string
-  const formatInrLpa = (salary) => {
-    if (salary == null || salary === '') return '-';
-    // If salary is just digits or numeric
-    if (typeof salary === 'number' || /^\d+$/.test(salary)) {
-      const lpa = (typeof salary === 'number' ? salary : parseInt(salary, 10)) / 100000;
-      return `₹${Number(lpa) % 1 === 0 ? lpa : lpa.toFixed(1)} LPA`;
-    }
-    // If salary is a range of digits: '800000-1500000'
-    if (typeof salary === 'string' && /^(\d+)-(\d+)$/.test(salary)) {
-      const [min, max] = salary.split('-').map(v => parseInt(v, 10) / 100000);
-      return `₹${Number(min) % 1 === 0 ? min : min.toFixed(1)}-${Number(max) % 1 === 0 ? max : max.toFixed(1)} LPA`;
-    }
-    // If salary is a band in LPA, e.g. '10-15lpa'
-    if (typeof salary === 'string' && salary.toLowerCase().includes('lpa')) {
-      const band = salary.toLowerCase().replace('lpa','').split('-');
-      if (band.length === 2) {
-        return `₹${band[0]}-${band[1]} LPA`;
-      }
-      return `₹${band[0]} LPA`;
-    }
-    // If salary is some other text, just show as is
-    return salary;
-  };
-
   const formatLpaUserBand = (salary) => {
     if (!salary) return '-';
     const val = String(salary).trim().toLowerCase();
@@ -233,110 +189,16 @@ const Dashboard = () => {
   const pagedNotifiers = filteredNotifiers.slice((notifiersPage - 1) * pageSize, notifiersPage * pageSize);
   const pagedDrafts = filteredDrafts.slice((draftsPage - 1) * pageSize, draftsPage * pageSize);
 
-  const navigationItems = [
-    { id: 'notifiers', label: `Notifiers ${notifiers.length}`, icon: Briefcase, active: activeTab === 'notifiers', onClick: () => setActiveTab('notifiers') },
-    { id: 'drafts', label: `Drafts ${drafts.length}`, icon: FileText, active: activeTab === 'drafts', onClick: () => setActiveTab('drafts') },
-    { id: 'add-notifier', label: 'Add Notifier', icon: Plus, onClick: () => navigate('/create-notifier'), isHighlight: true },
-    { id: 'job-insights', label: 'Job Insights', icon: BarChart3, onClick: () => navigate('/job-insights') },
-    { id: 'profile', label: 'Profile', icon: User, onClick: () => navigate('/profile') },
-    { id: 'settings', label: 'Settings', icon: SettingsIcon, onClick: () => navigate('/settings') },
-    { id: 'logout', label: 'Logout', icon: LogOut, onClick: handleLogout, isDanger: true },
-  ];
-
   if (loading) {
     return (
-      <div className="modern-dashboard">
-        <div className="loading">Loading...</div>
+      <div className="loading" style={{ padding: '3rem', textAlign: 'center' }}>
+        Loading...
       </div>
     );
   }
 
   return (
-    <div className="modern-dashboard">
-      {/* Header */}
-      <header className="dashboard-header">
-        <div className="header-left">
-          <button 
-            className="hamburger-menu" 
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            aria-label="Toggle menu"
-          >
-            <Menu size={24} />
-          </button>
-          <div className="logo">
-            <span className="logo-text">JobKick</span>
-          </div>
-        </div>
-        
-        <div className="header-right" style={{ position: 'relative' }}>
-          <div className="theme-toggle-switch" onClick={toggleTheme} aria-label="Toggle theme" title="Toggle theme" role="button">
-            <div className={`toggle-track-theme ${theme === 'dark' ? 'active' : ''}`}>
-              <div className="toggle-thumb-theme">
-                {theme === 'light' ? <Sun size={18} /> : <Moon size={18} />}
-              </div>
-            </div>
-          </div>
-          <div className="user-profile" onClick={() => setShowUserMenu(v => !v)} style={{ cursor: 'pointer' }} aria-label="Open user menu" title="Open user menu" role="button">
-            <span className="welcome-text">{user?.fullName?.split(' ')[0] || 'User'}</span>
-            <div className="user-avatar">
-              {user?.profilePhoto ? (
-                <img src={user.profilePhoto} alt="Profile" className="avatar-img" />
-              ) : (
-                <div className="avatar-img">
-                  <User size={20} />
-                </div>
-              )}
-              <ChevronDown size={16} />
-            </div>
-          </div>
-          {showUserMenu && (
-            <div className="user-menu">
-              <button className="action-btn secondary" style={{ width: '100%' }} onClick={handleLogout}>Logout</button>
-            </div>
-          )}
-        </div>
-      </header>
-
-      <div className="dashboard-layout">
-        {/* Sidebar Overlay for mobile */}
-        {sidebarOpen && (
-          <div 
-            className="sidebar-overlay" 
-            onClick={() => setSidebarOpen(false)}
-            style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              background: 'rgba(0, 0, 0, 0.5)',
-              zIndex: 98,
-              display: 'none'
-            }}
-          />
-        )}
-        
-        {/* Sidebar */}
-        <aside className={`dashboard-sidebar ${sidebarOpen ? 'open' : ''}`}>
-          <nav className="sidebar-nav">
-            {navigationItems.map((item) => (
-              <div 
-                key={item.id} 
-                className={`nav-item ${item.active ? 'active' : ''} ${item.isHighlight ? 'highlight' : ''} ${item.isDanger ? 'danger' : ''}`} 
-                onClick={() => {
-                  item.onClick();
-                  setSidebarOpen(false); // Close sidebar after navigation on mobile
-                }}
-              >
-                <item.icon size={20} />
-                <span>{item.label}</span>
-              </div>
-            ))}
-          </nav>
-        </aside>
-
-        {/* Main Content */}
-        <main className="dashboard-main">
+    <>
           {showProfileBanner && (
             <div className="profile-banner">
               <div className="banner-content">
@@ -366,10 +228,18 @@ const Dashboard = () => {
 
           {/* Tabs */}
           <div className="section-tabs">
-            <button className={`tab ${activeTab === 'notifiers' ? 'active' : ''}`} onClick={() => setActiveTab('notifiers')}>
+            <button
+              type="button"
+              className={`tab ${activeTab === 'notifiers' ? 'active' : ''}`}
+              onClick={() => setSearchParams({}, { replace: true })}
+            >
               Notifiers {notifiers.length}
             </button>
-            <button className={`tab ${activeTab === 'drafts' ? 'active' : ''}`} onClick={() => setActiveTab('drafts')}>
+            <button
+              type="button"
+              className={`tab ${activeTab === 'drafts' ? 'active' : ''}`}
+              onClick={() => setSearchParams({ tab: 'drafts' }, { replace: true })}
+            >
               Drafts {drafts.length}
             </button>
           </div>
@@ -784,9 +654,7 @@ const Dashboard = () => {
               )}
             </div>
           )}
-        </main>
-      </div>
-      
+
       <ConfirmDialog
         isOpen={confirmDialog.isOpen}
         onClose={() => setConfirmDialog({ ...confirmDialog, isOpen: false })}
@@ -797,7 +665,7 @@ const Dashboard = () => {
         variant={confirmDialog.variant}
         confirmText={confirmDialog.confirmText}
       />
-    </div>
+    </>
   );
 };
 

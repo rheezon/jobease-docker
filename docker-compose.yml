@@ -165,8 +165,10 @@ services:
       SPRING_MAIL_PROPERTIES_MAIL_SMTP_TIMEOUT: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_TIMEOUT:-5000}
       SPRING_MAIL_PROPERTIES_MAIL_SMTP_WRITETIMEOUT: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_WRITETIMEOUT:-5000}
       
-      # Frontend URL (for email links)
-      APP_FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      # Frontend URL (for email links) — must match where users open the UI (Compose maps frontend to 5173)
+      APP_FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      # Public API URL (scheme + host + port) for verification links in email — must be reachable from the user's browser
+      APP_API_PUBLIC_URL: ${APP_API_PUBLIC_URL:-http://localhost:8080}
       
       # Logging Configuration
       LOGGING_LEVEL_ROOT: ${LOGGING_LEVEL_ROOT:-INFO}

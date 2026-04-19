@@ -6,6 +6,7 @@ import Login from './pages/Login';
 import Signup from './pages/Signup';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
+import VerifyEmail from './pages/VerifyEmail';
 import Onboarding from './pages/Onboarding';
 import Dashboard from './pages/Dashboard';
 import Profile from './pages/Profile';
@@ -17,6 +18,7 @@ import NotifierJobs from './pages/NotifierJobs';
 import JobInsights from './pages/JobInsights';
 import Welcome from './pages/Welcome';
 import NotFound from './pages/NotFound';
+import MainAppLayout from './components/MainAppLayout';
 import './App.css';
 
 // Component to handle theme based on route
@@ -24,7 +26,7 @@ function ThemeManager() {
   const location = useLocation();
 
   useEffect(() => {
-    const authPages = ['/login', '/signup', '/forgot-password', '/reset-password'];
+    const authPages = ['/login', '/signup', '/forgot-password', '/reset-password', '/verify-email'];
     const isAuthPage = authPages.includes(location.pathname);
 
     if (isAuthPage) {
@@ -51,7 +53,7 @@ function App() {
           localStorage.removeItem(key);
         }
       }
-    } catch (_) {
+    } catch {
       // ignore cleanup errors
     }
   }, []);
@@ -72,6 +74,7 @@ function App() {
             <Route path="/signup" element={<Signup />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/verify-email" element={<VerifyEmail />} />
             <Route path="/welcome" element={
               <ProtectedRoute requireOnboarding={false}>
                 <Welcome />
@@ -82,34 +85,59 @@ function App() {
                 <Onboarding />
               </ProtectedRoute>
             } />
-            <Route path="/dashboard" element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            } />
-            <Route path="/profile" element={
-              <ProtectedRoute requireOnboarding={false}>
-                <Profile />
-              </ProtectedRoute>
-            } />
+            <Route element={<MainAppLayout />}>
+              <Route
+                path="/dashboard"
+                element={
+                  <ProtectedRoute>
+                    <Dashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/profile"
+                element={
+                  <ProtectedRoute requireOnboarding={false}>
+                    <Profile />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/settings"
+                element={
+                  <ProtectedRoute>
+                    <Settings />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/create-notifier"
+                element={
+                  <ProtectedRoute>
+                    <CreateNotifier />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/edit-notifier/:id"
+                element={
+                  <ProtectedRoute>
+                    <EditNotifier />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/job-insights"
+                element={
+                  <ProtectedRoute>
+                    <JobInsights />
+                  </ProtectedRoute>
+                }
+              />
+            </Route>
             <Route path="/notifications" element={
               <ProtectedRoute>
                 <Notifications />
-              </ProtectedRoute>
-            } />
-            <Route path="/settings" element={
-              <ProtectedRoute>
-                <Settings />
-              </ProtectedRoute>
-            } />
-            <Route path="/create-notifier" element={
-              <ProtectedRoute>
-                <CreateNotifier />
-              </ProtectedRoute>
-            } />
-            <Route path="/edit-notifier/:id" element={
-              <ProtectedRoute>
-                <EditNotifier />
               </ProtectedRoute>
             } />
             <Route path="/notifier/:notifierId/notifications" element={
@@ -120,11 +148,6 @@ function App() {
             <Route path="/notifier/:id" element={
               <ProtectedRoute>
                 <NotifierJobs />
-              </ProtectedRoute>
-            } />
-            <Route path="/job-insights" element={
-              <ProtectedRoute>
-                <JobInsights />
               </ProtectedRoute>
             } />
             <Route path="/" element={<Navigate to="/dashboard" replace />} />

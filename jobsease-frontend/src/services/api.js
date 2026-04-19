@@ -30,9 +30,19 @@ const makeUserFriendly = (message) => {
   const lower = message.toLowerCase();
   
   if (lower.includes('authentication failed')) return 'Invalid email or password.';
+  if (lower.includes('verify your email')) {
+    return 'Please verify your email before signing in. Check your inbox for the verification link.';
+  }
+  if (lower.includes('invalid or expired verification')) {
+    return 'This verification link is invalid or has expired.';
+  }
+  if (lower.includes('too many verification')) return 'Too many verification emails. Please try again later.';
   if (lower.includes('registration failed')) return 'Unable to create account. Please try again.';
   if (lower.includes('user not found') || lower.includes('no account found')) {
     return 'No account found with this email address. Please check your email or sign up.';
+  }
+  if (lower.includes('already registered but not verified')) {
+    return 'This email is waiting for verification. Use the same password you used when you registered, or log in and tap “Resend verification email”, or use Forgot password.';
   }
   if (lower.includes('already exists')) return 'An account with this email already exists.';
   
@@ -123,7 +133,14 @@ export const authService = {
     try {
       const payload = { email, password, fullName };
       const { data } = await api.post('/auth/signup', payload);
+      if (data.requiresEmailVerification) {
+        return {
+          requiresEmailVerification: true,
+          message: data.message || 'Check your email to verify your account.',
+        };
+      }
       return {
+        requiresEmailVerification: false,
         token: data.token,
         user: {
           id: data.userId,
@@ -131,6 +148,26 @@ export const authService = {
           fullName: data.fullName,
         },
       };
+    } catch (error) {
+      throw new Error(getErrorMessage(error));
+    }
+  },
+
+  verifyEmail: async (token) => {
+    try {
+      const { data } = await api.get('/auth/verify-email', {
+        params: { token, format: 'json' },
+      });
+      return data;
+    } catch (error) {
+      throw new Error(getErrorMessage(error));
+    }
+  },
+
+  resendVerification: async (email) => {
+    try {
+      const { data } = await api.post('/auth/resend-verification', { email });
+      return data;
     } catch (error) {
       throw new Error(getErrorMessage(error));
     }

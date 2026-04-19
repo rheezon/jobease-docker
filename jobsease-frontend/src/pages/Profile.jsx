@@ -1,17 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../components/AuthProvider';
-import { useNavigate } from 'react-router-dom';
 import { userInfoService } from '../services/api';
 import { 
-  User, LogOut, ArrowLeft, Mail, ChevronDown, Moon, Sun, Edit2, Save, X as XIcon, Plus, Trash2
+  User, Mail, Edit2, Save, X as XIcon, Plus, Trash2
 } from 'lucide-react';
 import ConfirmDialog from '../components/ConfirmDialog';
 
 const Profile = () => {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
-  const [showUserMenu, setShowUserMenu] = useState(false);
-  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
+  const { user } = useAuth();
   const [educationRecords, setEducationRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -31,7 +27,7 @@ const Profile = () => {
         const records = await userInfoService.getAll();
         setEducationRecords(records);
       } catch (error) {
-        try { console.error('[ERROR] Error fetching education details', { error: String(error?.message || error) }); } catch {}
+        console.error('[ERROR] Error fetching education details', { error: String(error?.message || error) });
       } finally {
         setLoading(false);
       }
@@ -39,31 +35,6 @@ const Profile = () => {
 
     fetchEducationDetails();
   }, []);
-
-  const toggleTheme = () => {
-    const newTheme = theme === 'light' ? 'dark' : 'light';
-    setTheme(newTheme);
-    localStorage.setItem('theme', newTheme);
-    document.documentElement.setAttribute('data-theme', newTheme);
-  };
-
-  const handleLogout = () => {
-    setConfirmDialog({
-      isOpen: true,
-      title: 'Confirm Logout',
-      message: 'Are you sure you want to logout?',
-      confirmText: 'Logout',
-      variant: 'warning',
-      action: () => {
-        logout();
-        navigate('/login');
-      }
-    });
-  };
-
-  const handleBackToDashboard = () => {
-    navigate('/dashboard');
-  };
 
   const handleEditClick = () => {
     setEditedRecords(JSON.parse(JSON.stringify(educationRecords))); // Deep copy
@@ -166,7 +137,7 @@ const Profile = () => {
       setEditedRecords([]);
       setValidationErrors({});
     } catch (error) {
-      try { console.error('[ERROR] Error updating education details', { error: String(error?.message || error) }); } catch {}
+      console.error('[ERROR] Error updating education details', { error: String(error?.message || error) });
       // Do not alert; field errors are shown inline for validation issues
     } finally {
       setIsSaving(false);
@@ -199,62 +170,8 @@ const Profile = () => {
   };
 
   return (
-    <div className="modern-dashboard">
-      {/* Header */}
-      <header className="dashboard-header">
-        <div className="header-left">
-          <div className="logo">
-            <span className="logo-text">JobKick</span>
-          </div>
-        </div>
-        
-        <div className="header-right" style={{ position: 'relative' }}>
-          <div className="theme-toggle-switch" onClick={toggleTheme} aria-label="Toggle theme" title="Toggle theme" role="button">
-            <div className={`toggle-track-theme ${theme === 'dark' ? 'active' : ''}`}>
-              <div className="toggle-thumb-theme">
-                {theme === 'light' ? <Sun size={28} /> : <Moon size={28} />}
-              </div>
-            </div>
-          </div>
-          <div className="user-profile" onClick={() => setShowUserMenu(v => !v)} style={{ cursor: 'pointer' }} aria-label="Open user menu" title="Open user menu" role="button">
-            <span className="welcome-text">{user?.fullName?.split(' ')[0] || 'User'}</span>
-            <div className="user-avatar">
-              {user?.profilePhoto ? (
-                <img src={user.profilePhoto} alt="Profile" className="avatar-img" />
-              ) : (
-                <div className="avatar-img">
-                  <User size={20} />
-                </div>
-              )}
-              <ChevronDown size={16} />
-            </div>
-          </div>
-          {showUserMenu && (
-            <div className="user-menu">
-              <button className="action-btn secondary" style={{ width: '100%' }} onClick={handleLogout}>Logout</button>
-            </div>
-          )}
-        </div>
-      </header>
-
-      <div className="dashboard-layout">
-        {/* Sidebar */}
-        <aside className="dashboard-sidebar">
-          <nav className="sidebar-nav">
-            <div className="nav-item" onClick={handleBackToDashboard}>
-              <ArrowLeft size={20} />
-              <span>Back to Dashboard</span>
-            </div>
-            <div className="nav-item active">
-              <User size={20} />
-              <span>Profile</span>
-            </div>
-          </nav>
-        </aside>
-
-        {/* Main Content */}
-        <main className="dashboard-main">
-          <div className="onboarding-section">
+    <>
+    <div className="onboarding-section">
             <div className="section-header">
               <h1 className="section-title">Profile Information</h1>
               <p className="section-subtitle">Your account details</p>
@@ -591,8 +508,6 @@ const Profile = () => {
               )}
               </div>
           </div>
-        </main>
-      </div>
 
       <ConfirmDialog
         isOpen={confirmDialog.isOpen}
@@ -606,7 +521,7 @@ const Profile = () => {
         confirmText={confirmDialog.confirmText || 'Confirm'}
         variant={confirmDialog.variant || 'warning'}
       />
-    </div>
+    </>
   );
 };
 

@@ -2,22 +2,24 @@ import React from 'react';
 import { AlertTriangle, X } from 'lucide-react';
 import '../styles/ConfirmDialog.css';
 
-const ConfirmDialog = ({ 
-  isOpen, 
-  onClose, 
-  onConfirm, 
+const ConfirmDialog = ({
+  isOpen,
+  onClose,
+  onConfirm,
   onCancel,
   title = 'Confirm Action',
   message = 'Are you sure you want to proceed?',
   confirmText = 'Confirm',
   cancelText = 'Cancel',
-  variant = 'danger' // 'danger' or 'warning'
+  variant = 'danger',
+  middleText = '',
+  onMiddle = null,
+  closeOnOverlayClick = true,
 }) => {
   if (!isOpen) return null;
 
   const handleConfirm = () => {
-    onConfirm();
-    onClose();
+    Promise.resolve(onConfirm?.()).finally(() => onClose());
   };
 
   const handleCancel = () => {
@@ -27,13 +29,23 @@ const ConfirmDialog = ({
     onClose();
   };
 
+  const handleMiddle = () => {
+    Promise.resolve(onMiddle?.()).finally(() => onClose());
+  };
+
+  const overlayClick = () => {
+    if (closeOnOverlayClick) {
+      handleCancel();
+    }
+  };
+
   return (
-    <div className="confirm-dialog-overlay" onClick={handleCancel}>
+    <div className="confirm-dialog-overlay" onClick={overlayClick}>
       <div className="confirm-dialog-container" onClick={(e) => e.stopPropagation()}>
-        <button className="confirm-dialog-close" onClick={handleCancel}>
+        <button type="button" className="confirm-dialog-close" onClick={handleCancel}>
           <X size={20} />
         </button>
-        
+
         <div className="confirm-dialog-header">
           <div className={`confirm-dialog-icon ${variant}`}>
             <AlertTriangle size={24} />
@@ -45,14 +57,17 @@ const ConfirmDialog = ({
           <p className="confirm-dialog-message">{message}</p>
         </div>
 
-        <div className="confirm-dialog-footer">
-          <button 
-            className="confirm-dialog-btn cancel-btn" 
-            onClick={handleCancel}
-          >
+        <div className="confirm-dialog-footer" style={onMiddle ? { flexWrap: 'wrap', gap: 8 } : undefined}>
+          <button type="button" className="confirm-dialog-btn cancel-btn" onClick={handleCancel}>
             {cancelText}
           </button>
-          <button 
+          {onMiddle && middleText ? (
+            <button type="button" className="confirm-dialog-btn cancel-btn" onClick={handleMiddle}>
+              {middleText}
+            </button>
+          ) : null}
+          <button
+            type="button"
             className={`confirm-dialog-btn confirm-btn ${variant}`}
             onClick={handleConfirm}
           >
@@ -65,4 +80,3 @@ const ConfirmDialog = ({
 };
 
 export default ConfirmDialog;
-
