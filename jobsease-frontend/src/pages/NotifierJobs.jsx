@@ -1144,7 +1144,7 @@ const NotifierJobs = () => {
                             <UserPlus size={18} /> Ask for Referral
                           </button>
                         )}
-                        {(job.hrContactEmail || job.hrContactApplyLinks) && (
+                        {job.hrContactEmail && (
                           <button
                             onClick={() => setHrContactModal(job)}
                             title="View HR contact details"
@@ -1615,41 +1615,6 @@ const NotifierJobs = () => {
               </div>
             )}
 
-            {hrContactModal.hrContactApplyLinks && (
-              <div style={{
-                background: theme === 'dark' ? '#374151' : '#F9FAFB',
-                borderRadius: '10px', padding: '14px',
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between'
-              }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '12px', fontWeight: 500, color: theme === 'dark' ? '#9CA3AF' : '#6B7280', marginBottom: '4px' }}>Apply Link</div>
-                  <div style={{
-                    fontSize: '14px', fontWeight: 500,
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
-                  }}>{hrContactModal.hrContactApplyLinks}</div>
-                </div>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(hrContactModal.hrContactApplyLinks);
-                    setCopiedField('link');
-                    setTimeout(() => setCopiedField(null), 2000);
-                  }}
-                  style={{
-                    background: copiedField === 'link'
-                      ? (theme === 'dark' ? '#065F46' : '#D1FAE5')
-                      : (theme === 'dark' ? '#4B5563' : '#E5E7EB'),
-                    border: 'none', borderRadius: '8px', padding: '8px',
-                    cursor: 'pointer', display: 'flex', alignItems: 'center',
-                    flexShrink: 0, marginLeft: '12px', transition: 'all 0.2s'
-                  }}
-                  title="Copy to clipboard"
-                >
-                  {copiedField === 'link'
-                    ? <Check size={16} color="#10B981" />
-                    : <Copy size={16} color={theme === 'dark' ? '#D1D5DB' : '#6B7280'} />}
-                </button>
-              </div>
-            )}
           </div>
         </div>
       )}

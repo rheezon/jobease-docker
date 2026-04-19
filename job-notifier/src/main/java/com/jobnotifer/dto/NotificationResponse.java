@@ -31,7 +31,6 @@ public class NotificationResponse {
     private Boolean applied;
     private Long jobId;
     private String hrContactEmail;
-    private String hrContactApplyLinks;
 
     public static NotificationResponse fromEntity(Notification notification) {
         NotificationResponse response = new NotificationResponse();

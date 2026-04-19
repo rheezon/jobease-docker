@@ -35,6 +35,9 @@ public class UserEngagementService {
     @Value("${app.frontend.url}")
     private String frontendUrl;
 
+    @Value("${scheduler.engagement.frequency-days:2}")
+    private int frequencyDays;
+
     private static final String SCHEDULER_NAME = "USER_ENGAGEMENT";
 
     @Scheduled(cron = "${scheduler.engagement.cron:0 0 10 * * ?}")
@@ -52,8 +55,16 @@ public class UserEngagementService {
             return;
         }
 
+        // Skip if last run was less than frequencyDays ago
+        LocalDateTime lastRun = schedulerState.getLastRunTimestamp();
+        if (lastRun != null && schedulerState.getCurrentRun() > 0
+                && lastRun.plusDays(frequencyDays).isAfter(LocalDateTime.now())) {
+            log.info("Skipping engagement emails — last sent {} (frequency: every {} days)", lastRun, frequencyDays);
+            return;
+        }
+
         LocalDateTime currentTime = LocalDateTime.now();
-        log.info("Starting user engagement email run {}", schedulerState.getCurrentRun() + 1);
+        log.info("Starting user engagement email run {} (frequency: every {} days)", schedulerState.getCurrentRun() + 1, frequencyDays);
 
         List<User> allUsers = userRepository.findAll();
         int emailsSent = 0;

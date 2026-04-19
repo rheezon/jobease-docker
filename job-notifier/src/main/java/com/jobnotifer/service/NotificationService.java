@@ -48,7 +48,6 @@ public class NotificationService {
                     if (n.getJobId() != null) {
                         hrContactRepository.findByJobId(n.getJobId()).ifPresent(hr -> {
                             resp.setHrContactEmail(hr.getEmail());
-                            resp.setHrContactApplyLinks(hr.getApplyLinks());
                         });
                     }
                     return resp;
