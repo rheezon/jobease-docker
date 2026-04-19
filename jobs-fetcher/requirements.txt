@@ -1,3 +1,7 @@
 telethon
 python-dotenv
 mysql-connector-python
+feedparser
+requests
+beautifulsoup4
+googlenewsdecoder

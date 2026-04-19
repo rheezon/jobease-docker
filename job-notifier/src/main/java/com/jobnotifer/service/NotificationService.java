@@ -1,8 +1,10 @@
 package com.jobnotifer.service;
 
 import com.jobnotifer.dto.NotificationResponse;
+import com.jobnotifer.entity.HrContact;
 import com.jobnotifer.entity.Notification;
 import com.jobnotifer.entity.Notifier;
+import com.jobnotifer.repository.HrContactRepository;
 import com.jobnotifer.repository.NotificationRepository;
 import com.jobnotifer.repository.NotifierRepository;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +24,7 @@ public class NotificationService {
     
     private final NotificationRepository notificationRepository;
     private final NotifierRepository notifierRepository;
+    private final HrContactRepository hrContactRepository;
     private final LatexCompilerService latexCompilerService;
     private final CloudinaryService cloudinaryService;
     private final ResumeUpdateRateLimiter resumeUpdateRateLimiter;
@@ -40,7 +43,16 @@ public class NotificationService {
                 .findByNotifierIdOrderByTimestampDesc(notifierId);
         
         return notifications.stream()
-                .map(NotificationResponse::fromEntity)
+                .map(n -> {
+                    NotificationResponse resp = NotificationResponse.fromEntity(n);
+                    if (n.getJobId() != null) {
+                        hrContactRepository.findByJobId(n.getJobId()).ifPresent(hr -> {
+                            resp.setHrContactEmail(hr.getEmail());
+                            resp.setHrContactApplyLinks(hr.getApplyLinks());
+                        });
+                    }
+                    return resp;
+                })
                 .collect(Collectors.toList());
     }
     

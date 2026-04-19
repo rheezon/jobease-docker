@@ -214,8 +214,9 @@ public class JobProcessingService {
             notification.setRelevanceScore(relevanceScore);
             notification.setRelevanceReason(relevanceReason);
             notification.setOriginalJobPosting(job.getJob());
+            notification.setJobId(job.getId());
             notification.setApplied(false);
-            
+
             notificationRepository.save(notification);
             log.info("Notification created for notifier {} - Company: {}", notifier.getId(), company);
             return true;

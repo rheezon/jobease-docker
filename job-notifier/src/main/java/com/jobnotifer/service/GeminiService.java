@@ -355,8 +355,8 @@ public class GeminiService {
             result.put("description", jsonNode.has("description") ? jsonNode.get("description").asText() : jobPosting);
             result.put("jobLink", jsonNode.has("jobLink") ? (jsonNode.get("jobLink").isNull() ? null : jsonNode.get("jobLink").asText()) : null);
 
-            log.info("AI Analysis completed. Score: {}, Company: {}, Role: {}, JobType: {}",
-                    result.get("score"), result.get("company"), result.get("role"), result.get("jobType"));
+            log.info("AI Analysis completed. NotifierId: {}, Score: {}, Company: {}, Role: {}, JobType: {}",
+                    notifier.getId(), result.get("score"), result.get("company"), result.get("role"), result.get("jobType"));
             return result;
 
         } catch (Exception e) {
