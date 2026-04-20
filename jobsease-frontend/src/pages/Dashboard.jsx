@@ -3,11 +3,11 @@ import { useAuth } from '../components/AuthProvider';
 import { notifierService } from '../services/api';
 import { Link, useNavigate, useLocation, useSearchParams, useOutletContext } from 'react-router-dom';
 import { 
-  Plus, Briefcase, MapPin, DollarSign, 
-  Search, User, FileText, 
+  Plus, Briefcase, MapPin, DollarSign,
+  Search, User, FileText,
   AlertCircle, CheckCircle,
   X, Star, Clock, Eye, Trash2, Edit,
-  BarChart3
+  BarChart3, Bell
 } from 'lucide-react';
 import ConfirmDialog from '../components/ConfirmDialog';
 
