@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Upload, FileText, CheckCircle2, RefreshCw } from 'lucide-react';
 import {
   extractResumeData,
@@ -19,6 +19,8 @@ export default function ResumeIntakePanel({
   user,
   onOnboardingAutofill,
   onNotifierAutofill,
+  initialResumeFileName = '',
+  initialLatex = '',
 }) {
   const [tab, setTab] = useState('pdf');
   const [latexDraft, setLatexDraft] = useState('');
@@ -27,6 +29,12 @@ export default function ResumeIntakePanel({
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState(null);
   const fileRef = useRef(null);
+
+  useEffect(() => {
+    const seededLatex = (initialLatex || '').trim();
+    setLatexDraft(initialLatex || '');
+    setAppliedLatexTrim(seededLatex || null);
+  }, [initialLatex]);
 
   const trimmedLatex = latexDraft.trim();
   const hasLatex = trimmedLatex.length > 0;
@@ -170,6 +178,12 @@ export default function ResumeIntakePanel({
               </div>
             </label>
           </div>
+          {initialResumeFileName ? (
+            <p className="field-note" style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <FileText size={15} />
+              Current resume file: <strong>{initialResumeFileName}</strong>
+            </p>
+          ) : null}
         </div>
       )}
 

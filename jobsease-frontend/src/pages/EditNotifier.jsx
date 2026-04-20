@@ -4,9 +4,10 @@ import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { useNavigate, useParams, useOutletContext } from 'react-router-dom';
 import { notifierService, userInfoService } from '../services/api';
-import { FileText, AlertCircle, X, Plus } from 'lucide-react';
+import { X } from 'lucide-react';
 import { useAuth } from '../components/AuthProvider';
 import ConfirmDialog from '../components/ConfirmDialog';
+import ResumeIntakePanel from '../components/ResumeIntakePanel';
 
 const schema = yup.object({
   name: yup.string().required('Notifier name is required'),
@@ -28,6 +29,7 @@ const EditNotifier = () => {
   const [loadingNotifier, setLoadingNotifier] = useState(true);
   const [error, setError] = useState('');
   const [resumeFileName, setResumeFileName] = useState('');
+  const [initialResumeLatex, setInitialResumeLatex] = useState('');
   const [confirmDialog, setConfirmDialog] = useState({
     isOpen: false,
     title: '',
@@ -108,8 +110,13 @@ const EditNotifier = () => {
       setValue('noticePeriod', notifier.noticePeriod || '');
       setValue('companiesPreference', notifier.companiesPreference || '');
       setValue('additionalPreferences', notifier.additionalPreferences || '');
-      setValue('resumeLatex', notifier.resumeLatex || '');
-      setResumeFileName(notifier.resumeFileName || '');
+      const existingResumeFileName = notifier.resumeFileName || '';
+      setResumeFileName(existingResumeFileName);
+      // Show previously entered LaTeX only for notifiers created from LaTeX input.
+      // If a resume file exists, backend LaTeX may be generated from upload and should not be prefilled.
+      const showUserLatexOnly = existingResumeFileName ? '' : (notifier.resumeLatex || '');
+      setInitialResumeLatex(showUserLatexOnly);
+      setValue('resumeLatex', showUserLatexOnly);
 
       // Handle skills - convert comma-separated string to array
       if (notifier.skills) {
@@ -195,6 +202,21 @@ const EditNotifier = () => {
     }
   };
 
+  const handleNotifierResumeAutofill = (patch) => {
+    if (!patch?.setValue) return;
+    Object.entries(patch.setValue).forEach(([key, val]) => {
+      if (val !== undefined && val !== null && String(val).trim() !== '') {
+        setValue(key, val);
+      }
+    });
+    if (Array.isArray(patch.skills) && patch.skills.length > 0) {
+      setSkills(patch.skills);
+    }
+    if (Object.prototype.hasOwnProperty.call(patch, 'resumeFileName')) {
+      setResumeFileName(patch.resumeFileName || '');
+    }
+  };
+
   if (loadingNotifier) {
     return (
       <div className="create-notifier-container" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -209,6 +231,14 @@ const EditNotifier = () => {
         {error && <div className="error-message">{error}</div>}
 
         <form onSubmit={handleSubmit(onSubmit)} className="notifier-form">
+          <ResumeIntakePanel
+            variant="notifier"
+            user={user}
+            onNotifierAutofill={handleNotifierResumeAutofill}
+            initialResumeFileName={resumeFileName}
+            initialLatex={initialResumeLatex}
+          />
+
           <div className="form-section">
             <h2>Notifier Information</h2>
             <div className="form-group">
@@ -489,83 +519,6 @@ const EditNotifier = () => {
               </small>
             </div>
           )}
-
-          {/* Resume LaTeX Code Section */}
-          <div className="form-section">
-            <h2>Resume LaTeX Code (Optional)</h2>
-            <div className="form-group">
-              <label htmlFor="resumeLatexInput">LaTeX Code for Resume</label>
-              <textarea
-                id="resumeLatexInput"
-                placeholder="Paste your resume LaTeX code here..."
-                {...register('resumeLatex')}
-                rows={10}
-                style={{ 
-                  width: '100%', 
-                  padding: '0.75rem', 
-                  borderRadius: '8px', 
-                  border: '1px solid #E5E7EB', 
-                  fontSize: '13px', 
-                  fontFamily: 'monospace',
-                  resize: 'vertical',
-                  backgroundColor: '#F9FAFB'
-                }}
-              />
-              <small className="field-note">Enter your resume in LaTeX format. This will be used to generate your resume PDF as per the job in the notifier.</small>
-            </div>
-          </div>
-
-          <div className="form-section">
-            <h2>Resume Upload</h2>
-            <div className="form-group" style={{ opacity: 0.5, pointerEvents: 'none' }}>
-              <label>Choose an option</label>
-              <div className="resume-options-grid">
-                <div
-                  style={{
-                    border: '2px solid #6366F1',
-                    borderRadius: 12,
-                    padding: 16,
-                    cursor: 'not-allowed',
-                    background: '#fff'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{
-                      width: 10,
-                      height: 10,
-                      background: '#6366F1',
-                      borderRadius: '50%'
-                    }} />
-                    <div>
-                      <div style={{ fontWeight: 600 }}>Use existing resume</div>
-                      <div style={{ color: '#6B7280', fontSize: 13 }}>Auto-augment with this notifier's skills and details</div>
-                    </div>
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    border: '1px solid #E5E7EB',
-                    borderRadius: 12,
-                    padding: 16,
-                    cursor: 'not-allowed',
-                    background: '#fff'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div>
-                      <div style={{ fontWeight: 600 }}>Upload a different resume</div>
-                      <div style={{ color: '#6B7280', fontSize: 13 }}>Attach a resume tailored for this role</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div style={{ marginTop: '1rem', padding: '0.75rem', background: '#FEF3C7', border: '1px solid #FCD34D', borderRadius: '8px', color: '#92400E' }}>
-              <AlertCircle size={16} style={{ display: 'inline', marginRight: '0.5rem' }} />
-              <strong>Resume upload is currently disabled.</strong> This feature will be available soon.
-            </div>
-          </div>
 
           <div className="form-actions" style={{ display: 'flex', gap: '12px', justifyContent: 'space-between', alignItems: 'center' }}>
             <button 

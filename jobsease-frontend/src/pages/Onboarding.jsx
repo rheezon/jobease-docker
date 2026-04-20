@@ -350,9 +350,15 @@ const Onboarding = () => {
       {/* Header */}
       <header className="dashboard-header">
         <div className="header-left">
-          <div className="logo">
+          <button
+            type="button"
+            className="logo logo-home-btn"
+            onClick={() => navigate('/dashboard')}
+            aria-label="Go to dashboard"
+            title="Go to dashboard"
+          >
             <span className="logo-text">JobKick</span>
-          </div>
+          </button>
         </div>
         
         <div className="header-right" style={{ position: 'relative' }}>
@@ -625,29 +631,6 @@ const Onboarding = () => {
                 {formData.skills.length === 0 && (
                   <span className="field-error">Please add at least one skill</span>
                 )}
-              </div>
-
-              <div className="form-group full-width">
-                <label htmlFor="resumeLatex">Resume LaTeX (optional, editable)</label>
-                <textarea
-                  id="resumeLatex"
-                  name="resumeLatex"
-                  placeholder="Paste or refine LaTeX after using PDF / LaTeX intake above…"
-                  value={formData.resumeLatex}
-                  onChange={handleInputChange}
-                  rows={8}
-                  style={{
-                    width: '100%',
-                    padding: '0.75rem',
-                    borderRadius: '8px',
-                    border: '1px solid #E5E7EB',
-                    fontSize: '13px',
-                    fontFamily: 'ui-monospace, monospace',
-                    resize: 'vertical',
-                    backgroundColor: '#F9FAFB',
-                  }}
-                />
-                <small className="field-note">Used to generate tailored resume PDFs for matched jobs.</small>
               </div>
 
             </div>

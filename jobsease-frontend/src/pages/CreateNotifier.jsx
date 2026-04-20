@@ -598,31 +598,6 @@ const CreateNotifier = () => {
             </div>
           )}
 
-          {/* Resume LaTeX Code Section */}
-          <div className="form-section">
-            <h2>Resume LaTeX Code (Optional)</h2>
-            <div className="form-group">
-              <label htmlFor="resumeLatexInput">LaTeX Code for Resume</label>
-              <textarea
-                id="resumeLatexInput"
-                placeholder="Paste your resume LaTeX code here..."
-                {...register('resumeLatex')}
-                rows={10}
-                style={{ 
-                  width: '100%', 
-                  padding: '0.75rem', 
-                  borderRadius: '8px', 
-                  border: '1px solid #E5E7EB', 
-                  fontSize: '13px', 
-                  fontFamily: 'monospace',
-                  resize: 'vertical',
-                  backgroundColor: '#F9FAFB'
-                }}
-              />
-              <small className="field-note">Enter your resume in LaTeX format. This will be used to generate your resume PDF as per the job in the notifier.</small>
-            </div>
-          </div>
-
           {resumeFileName ? (
             <div className="form-section" style={{ paddingBottom: 8 }}>
               <p className="field-note" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

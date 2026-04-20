@@ -62,8 +62,15 @@ const Signup = () => {
 
   useEffect(() => {
     setGoogleError('');
-    const clientId = window._env_?.VITE_GOOGLE_CLIENT_ID || import.meta.env.VITE_GOOGLE_CLIENT_ID;
-    if (!clientId) return;
+    const clientId =
+      window._env_?.VITE_GOOGLE_CLIENT_ID ||
+      window._env_?.GOOGLE_CLIENT_ID ||
+      import.meta.env.VITE_GOOGLE_CLIENT_ID ||
+      import.meta.env.GOOGLE_CLIENT_ID;
+    if (!clientId) {
+      setGoogleError('Google sign-up is unavailable. Missing Google client ID configuration.');
+      return;
+    }
 
     const initGoogle = () => {
       if (!window.google?.accounts?.id) return false;
@@ -94,7 +101,7 @@ const Signup = () => {
           });
         }
         return true;
-      } catch (_) {
+      } catch {
         setGoogleError('Google init failed. Check client ID.');
         return true; // stop retrying on error
       }
@@ -105,7 +112,10 @@ const Signup = () => {
       const interval = setInterval(() => {
         if (initGoogle()) clearInterval(interval);
       }, 200);
-      const timeout = setTimeout(() => clearInterval(interval), 5000);
+      const timeout = setTimeout(() => {
+        clearInterval(interval);
+        setGoogleError('Google sign-up is unavailable right now. Please refresh and try again.');
+      }, 5000);
       return () => { clearInterval(interval); clearTimeout(timeout); };
     }
   }, []);

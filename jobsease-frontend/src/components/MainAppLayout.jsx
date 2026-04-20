@@ -214,9 +214,15 @@ export default function MainAppLayout() {
           >
             <Menu size={24} />
           </button>
-          <div className="logo">
+          <button
+            type="button"
+            className="logo logo-home-btn"
+            onClick={() => navigateWithGuard('/dashboard')}
+            aria-label="Go to dashboard"
+            title="Go to dashboard"
+          >
             <span className="logo-text">JobKick</span>
-          </div>
+          </button>
         </div>
 
         <div className="header-right" style={{ position: 'relative' }}>
