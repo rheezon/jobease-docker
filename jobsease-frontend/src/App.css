@@ -8170,3 +8170,54 @@ input:checked + .slider:before {
   }
 }
 
+/* City checkbox selector */
+.city-checkbox-panel {
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  padding: 12px;
+  background: var(--bg-card);
+}
+
+.city-checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 6px;
+}
+
+.city-checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 5px 8px;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+  box-sizing: border-box;
+}
+
+.city-checkbox-item:hover {
+  border-color: var(--primary-color);
+}
+
+.city-checkbox-item.selected {
+  border-color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color) 10%, var(--bg-secondary));
+}
+
+.city-checkbox-item input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  flex: 0 0 14px;
+  accent-color: var(--primary-color);
+}
+
+.city-checkbox-item span {
+  font-size: 13px;
+  color: var(--text-primary);
+  line-height: 1.1;
+}
+

@@ -25,6 +25,7 @@ const Onboarding = () => {
     email: '',
     phone: '',
     location: '',
+    customCity: '',
     experience: '',
     skills: [],
     salaryExpectation: '',
@@ -51,6 +52,8 @@ const Onboarding = () => {
   const [skillInput, setSkillInput] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [filteredSuggestions, setFilteredSuggestions] = useState([]);
+  const [selectedCities, setSelectedCities] = useState([]);
+  const [useCustomCity, setUseCustomCity] = useState(false);
   
   const { user, updateUserProfile, logout } = useAuth();
   const navigate = useNavigate();
@@ -189,18 +192,42 @@ const Onboarding = () => {
     'Cloud Security Engineer',
   ];
 
+  const cityOptions = [
+    'Remote',
+    'Any',
+    'Bangalore',
+    'Hyderabad',
+    'Pune',
+    'Delhi',
+    'Mumbai',
+    'Chennai',
+    'Noida',
+    'Gurgaon',
+    'Kolkata',
+    'Ahmedabad',
+    'Jaipur',
+  ];
+
   if (!import.meta.env.PROD) {
     try { console.debug('[DEBUG] Onboarding component rendered', { userPresent: !!user, isLoading }); } catch {}
   }
 
   useEffect(() => {
     if (user) {
+      const userCityParts = String(user.location || '')
+        .split(',')
+        .map((x) => x.trim())
+        .filter(Boolean);
+      const userCityAllPreset = userCityParts.length > 0 && userCityParts.every((c) => cityOptions.includes(c));
+      setUseCustomCity(!!user.location && !userCityAllPreset);
+      setSelectedCities(userCityAllPreset ? userCityParts : []);
       setFormData(prev => ({
         ...prev,
         fullName: user.fullName || '',
         email: user.email || '',
         phone: user.phone || '',
         location: user.location || '',
+        customCity: !!user.location && !userCityAllPreset ? user.location : '',
         experience: user.experience || '',
         skills: user.skills || [],
         salaryExpectation: user.salaryExpectation || '',
@@ -219,8 +246,31 @@ const Onboarding = () => {
     }
   }, [user]);
 
+  useEffect(() => {
+    if (useCustomCity) {
+      setFormData((prev) => ({
+        ...prev,
+        location: prev.customCity || '',
+      }));
+      return;
+    }
+    setFormData((prev) => ({
+      ...prev,
+      location: selectedCities.join(', '),
+    }));
+  }, [selectedCities, useCustomCity]);
+
   const handleResumeAutofill = (payload) => {
     if (!payload?.formData) return;
+    const incomingCityParts = String(payload.formData.location || '')
+      .split(',')
+      .map((x) => x.trim())
+      .filter(Boolean);
+    const incomingCityAllPreset = incomingCityParts.length > 0 && incomingCityParts.every((c) => cityOptions.includes(c));
+    if (payload.formData.location) {
+      setUseCustomCity(!incomingCityAllPreset);
+      setSelectedCities(incomingCityAllPreset ? incomingCityParts : []);
+    }
     setFormData((prev) => ({
       ...prev,
       ...payload.formData,
@@ -241,7 +291,8 @@ const Onboarding = () => {
     setFormData(prev => ({
       ...prev,
       [name]: value,
-      ...(name === 'role' && value !== '__custom__' ? { customRole: '' } : {})
+      ...(name === 'role' && value !== '__custom__' ? { customRole: '' } : {}),
+      ...(name === 'location' && value !== '__custom__' ? { customCity: '' } : {})
     }));
   };
 
@@ -289,6 +340,19 @@ const Onboarding = () => {
     }
   };
 
+  const toggleCitySelection = (city, checked) => {
+    setSelectedCities((prev) => {
+      if (checked && (city === 'Any' || city === 'Remote')) {
+        return [city];
+      }
+      if (!checked) {
+        return prev.filter((c) => c !== city);
+      }
+      const base = prev.filter((c) => c !== 'Any' && c !== 'Remote');
+      return base.includes(city) ? base : [...base, city];
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
@@ -298,8 +362,9 @@ const Onboarding = () => {
     
     try {
       const normalizedRole = formData.role === '__custom__' ? formData.customRole.trim() : formData.role;
+      const normalizedCity = useCustomCity ? formData.customCity.trim() : selectedCities.join(', ');
       // Validate notifier fields
-      if (!formData.location || !formData.experience || formData.skills.length === 0 || 
+      if (!normalizedCity || !formData.experience || formData.skills.length === 0 || 
           !formData.salaryExpectation || !normalizedRole || !formData.notifierName) {
         setError('Please fill in all required notifier fields');
         setIsLoading(false);
@@ -341,7 +406,7 @@ const Onboarding = () => {
       const createResponse = await notifierService.create({
         name: formData.notifierName,
         role: normalizedRole,
-        city: formData.location,
+        city: normalizedCity,
         salaryExpectation: formData.salaryExpectation,
         experience: formData.experience,
         skills: skillsString,
@@ -491,29 +556,56 @@ const Onboarding = () => {
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="location">Preferred City *</label>
-                  <select
-                    id="location"
-                    name="location"
-                    value={formData.location}
-                    onChange={handleInputChange}
-                    required
+                  <label htmlFor="location">{useCustomCity ? 'Preferred Cities *' : 'Preferred City/Cities *'}</label>
+                  {!useCustomCity ? (
+                    <>
+                      <div id="location" className="city-checkbox-panel">
+                        <div className="city-checkbox-grid">
+                          {cityOptions.map((city) => (
+                            <label key={city} className={`city-checkbox-item ${selectedCities.includes(city) ? 'selected' : ''}`}>
+                              <input
+                                type="checkbox"
+                                checked={selectedCities.includes(city)}
+                                onChange={(e) => toggleCitySelection(city, e.target.checked)}
+                              />
+                              <span>{city}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                      <small className="field-note">Select one or more cities using checkboxes.</small>
+                    </>
+                  ) : (
+                    <>
+                      <input
+                        type="text"
+                        id="customCity"
+                        name="customCity"
+                        value={formData.customCity}
+                        onChange={handleInputChange}
+                        placeholder="e.g., Bangalore, Pune, Chennai"
+                        required={useCustomCity}
+                      />
+                      <small className="field-note">Enter one or more preferred cities (comma-separated).</small>
+                    </>
+                  )}
+                </div>
+                  <div className="form-group">
+                  <button
+                    type="button"
+                    className="action-btn secondary"
+                    onClick={() => {
+                      setUseCustomCity((prev) => !prev);
+                      if (useCustomCity) {
+                        setFormData((prev) => ({ ...prev, customCity: '' }));
+                      } else {
+                        setSelectedCities([]);
+                        setFormData((prev) => ({ ...prev, location: '' }));
+                      }
+                    }}
                   >
-                    <option value="">Select city</option>
-                    <option value="Remote">Remote</option>
-                    <option value="Any">Any</option>
-                    <option value="Bangalore">Bangalore</option>
-                    <option value="Hyderabad">Hyderabad</option>
-                    <option value="Pune">Pune</option>
-                    <option value="Delhi">Delhi</option>
-                    <option value="Mumbai">Mumbai</option>
-                    <option value="Chennai">Chennai</option>
-                    <option value="Noida">Noida</option>
-                    <option value="Gurgaon">Gurgaon</option>
-                    <option value="Kolkata">Kolkata</option>
-                    <option value="Ahmedabad">Ahmedabad</option>
-                    <option value="Jaipur">Jaipur</option>
-                  </select>
+                    {useCustomCity ? 'Select from city list' : 'Enter city manually instead'}
+                  </button>
                 </div>
               </div>
             </div>

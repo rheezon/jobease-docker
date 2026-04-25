@@ -14,6 +14,7 @@ const schema = yup.object({
   role: yup.string().required('Role is required'),
   customRole: yup.string(),
   city: yup.string().required('City is required'),
+  customCity: yup.string(),
   salaryExpectation: yup.string().required('Salary expectation is required'),
   experience: yup.string().required('Experience level is required'),
   noticePeriod: yup.string().required('Notice period is required'),
@@ -23,6 +24,21 @@ const schema = yup.object({
 });
 
 const CreateNotifier = () => {
+  const cityOptions = [
+    'Remote',
+    'Any',
+    'Bangalore',
+    'Hyderabad',
+    'Pune',
+    'Delhi',
+    'Mumbai',
+    'Chennai',
+    'Noida',
+    'Gurgaon',
+    'Kolkata',
+    'Ahmedabad',
+    'Jaipur',
+  ];
   const roleOptions = [
     'Machine Learning Engineer',
     'Senior Machine Learning Engineer',
@@ -83,6 +99,8 @@ const CreateNotifier = () => {
   const baselineRef = useRef(null);
   const isDirtyRef = useRef(false);
   const [educationRecords, setEducationRecords] = useState([]);
+  const [selectedCities, setSelectedCities] = useState([]);
+  const [useCustomCity, setUseCustomCity] = useState(false);
   const navigate = useNavigate();
 
   // Skills state
@@ -116,6 +134,16 @@ const CreateNotifier = () => {
     defaultValues: { additionalPreferences: '' },
   });
   const watched = watch();
+  const watchedCustomCity = watch('customCity');
+
+  useEffect(() => {
+    if (useCustomCity) {
+      setValue('city', (watchedCustomCity || '').trim(), { shouldDirty: true });
+      return;
+    }
+    setValue('city', selectedCities.join(', '), { shouldDirty: true });
+    setValue('customCity', '', { shouldDirty: true });
+  }, [selectedCities, useCustomCity, watchedCustomCity, setValue]);
 
   const snapshotForm = () =>
     JSON.stringify({
@@ -200,7 +228,29 @@ const CreateNotifier = () => {
           setValue('role', draft.role ? '__custom__' : '');
           setValue('customRole', draft.role || '');
         }
-        setValue('city', draft.city || '');
+        if (draft.city) {
+          const parts = String(draft.city)
+            .split(',')
+            .map((x) => x.trim())
+            .filter(Boolean);
+          const allPreset = parts.length > 0 && parts.every((c) => cityOptions.includes(c));
+          if (allPreset) {
+            setUseCustomCity(false);
+            setSelectedCities(parts);
+            setValue('city', parts.join(', '));
+            setValue('customCity', '');
+          } else {
+            setUseCustomCity(true);
+            setSelectedCities([]);
+            setValue('city', draft.city);
+            setValue('customCity', draft.city);
+          }
+        } else {
+          setUseCustomCity(false);
+          setSelectedCities([]);
+          setValue('city', '');
+          setValue('customCity', '');
+        }
         setValue('salaryExpectation', draft.salaryExpectation || '');
         setValue('experience', draft.experience || '');
         setValue('noticePeriod', draft.noticePeriod || '');
@@ -263,10 +313,24 @@ const CreateNotifier = () => {
     }
   };
 
+  const toggleCitySelection = (city, checked) => {
+    setSelectedCities((prev) => {
+      if (checked && (city === 'Any' || city === 'Remote')) {
+        return [city];
+      }
+      if (!checked) {
+        return prev.filter((c) => c !== city);
+      }
+      const base = prev.filter((c) => c !== 'Any' && c !== 'Remote');
+      return base.includes(city) ? base : [...base, city];
+    });
+  };
+
 
   const persistDraft = async () => {
     const data = getValues();
     const normalizedRole = data.role === '__custom__' ? (data.customRole || '').trim() : data.role;
+    const normalizedCity = useCustomCity ? (data.customCity || '').trim() : selectedCities.join(', ');
     if (!data.name || data.name.trim() === '') {
       setError('Please enter a notifier name before saving draft');
       throw new Error('name-required');
@@ -274,6 +338,10 @@ const CreateNotifier = () => {
     if (!normalizedRole) {
       setError('Please select a role or enter your own role');
       throw new Error('role-required');
+    }
+    if (!normalizedCity) {
+      setError('Please select a city or enter your preferred cities');
+      throw new Error('city-required');
     }
 
     setIsLoading(true);
@@ -284,6 +352,7 @@ const CreateNotifier = () => {
       const draftData = {
         ...data,
         role: normalizedRole,
+        city: normalizedCity,
         skills: skillsString || '',
         resumeFileName: resumeFileName || '',
         resumeLatex: data.resumeLatex || '',
@@ -348,6 +417,7 @@ const CreateNotifier = () => {
     setError('');
     try {
       const normalizedRole = data.role === '__custom__' ? (data.customRole || '').trim() : data.role;
+      const normalizedCity = useCustomCity ? (data.customCity || '').trim() : selectedCities.join(', ');
       if (skills.length === 0) {
         setError('Please add at least one skill');
         setIsLoading(false);
@@ -358,6 +428,11 @@ const CreateNotifier = () => {
         setIsLoading(false);
         return;
       }
+      if (!normalizedCity) {
+        setError('Please select a city or enter your preferred cities');
+        setIsLoading(false);
+        return;
+      }
 
       const skillsString = skills.join(', ');
 
@@ -365,6 +440,7 @@ const CreateNotifier = () => {
       const notifierData = {
         ...data,
         role: normalizedRole,
+        city: normalizedCity,
         skills: skillsString,
         resumeFileName: resumeFileName || '',
         resumeLatex: data.resumeLatex || '',
@@ -458,29 +534,54 @@ const CreateNotifier = () => {
 
             {/* City select */}
             <div className="form-group">
-              <label htmlFor="city">Preferred City *</label>
-              <select
-                id="city"
-                {...register('city')}
-                className={errors.city ? 'error' : ''}
-                defaultValue=""
-              >
-                <option value="" disabled>Select city</option>
-                <option value="Remote">Remote</option>
-                <option value="Any">Any</option>
-                <option value="Bangalore">Bangalore</option>
-                <option value="Hyderabad">Hyderabad</option>
-                <option value="Pune">Pune</option>
-                <option value="Delhi">Delhi</option>
-                <option value="Mumbai">Mumbai</option>
-                <option value="Chennai">Chennai</option>
-                <option value="Noida">Noida</option>
-                <option value="Gurgaon">Gurgaon</option>
-                <option value="Kolkata">Kolkata</option>
-                <option value="Ahmedabad">Ahmedabad</option>
-                <option value="Jaipur">Jaipur</option>
-              </select>
+              <label htmlFor="city">{useCustomCity ? 'Preferred Cities *' : 'Preferred City/Cities *'}</label>
+              {!useCustomCity ? (
+                <>
+                  <div id="city" className={`city-checkbox-panel ${errors.city ? 'error' : ''}`}>
+                    <div className="city-checkbox-grid">
+                      {cityOptions.map((city) => (
+                        <label key={city} className={`city-checkbox-item ${selectedCities.includes(city) ? 'selected' : ''}`}>
+                          <input
+                            type="checkbox"
+                            checked={selectedCities.includes(city)}
+                            onChange={(e) => toggleCitySelection(city, e.target.checked)}
+                          />
+                          <span>{city}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <small className="field-note">Select one or more cities using checkboxes.</small>
+                </>
+              ) : (
+                <>
+                  <input
+                    type="text"
+                    id="customCity"
+                    placeholder="e.g., Bangalore, Pune, Chennai"
+                    {...register('customCity')}
+                    className={errors.customCity ? 'error' : ''}
+                  />
+                  <small className="field-note">Enter one or more preferred cities (comma-separated).</small>
+                </>
+              )}
               {errors.city && <span className="field-error">{errors.city.message}</span>}
+            </div>
+            <div className="form-group">
+              <button
+                type="button"
+                className="action-btn secondary"
+                onClick={() => {
+                  setUseCustomCity((prev) => !prev);
+                  if (useCustomCity) {
+                    setValue('customCity', '');
+                  } else {
+                    setSelectedCities([]);
+                  }
+                }}
+              >
+                {useCustomCity ? 'Select from city list' : 'Enter city manually instead'}
+              </button>
             </div>
 
             {/* Salary Expectation select (already present) */}
