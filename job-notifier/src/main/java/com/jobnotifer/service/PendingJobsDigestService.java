@@ -117,8 +117,8 @@ public class PendingJobsDigestService {
                                   List<Notification> expiringSoon,
                                   List<Notification> otherPending) {
         String subject = expiringSoon.isEmpty()
-                ? String.format("📋 You have %d pending job applications", totalPending)
-                : String.format("⚠️ %d jobs expiring soon! %d total pending", expiringSoon.size(), totalPending);
+                ? String.format("You have %d pending job applications", totalPending)
+                : String.format("%d jobs expiring soon! %d total pending", expiringSoon.size(), totalPending);
 
         String body = buildDigestBody(user, totalPending, expiringSoon, otherPending);
         emailService.sendEmail(user.getEmail(), subject, body);
@@ -132,11 +132,11 @@ public class PendingJobsDigestService {
 
         body.append("Hello ").append(user.getFullName()).append(",\n\n");
         body.append("Here's your daily job application summary:\n\n");
-        body.append("📊 Total pending applications: ").append(totalPending).append("\n\n");
+        body.append("Total pending applications: ").append(totalPending).append("\n\n");
 
         // Expiring soon section
         if (!expiringSoon.isEmpty()) {
-            body.append("🔴 EXPIRING SOON (within 3 days) — Apply ASAP!\n");
+            body.append("EXPIRING SOON (within 3 days) — Apply ASAP!\n");
             body.append("─────────────────────────────────────────\n");
             for (int i = 0; i < expiringSoon.size(); i++) {
                 Notification job = expiringSoon.get(i);
@@ -152,11 +152,11 @@ public class PendingJobsDigestService {
                 body.append("\n");
 
                 if (daysLeft == 0) {
-                    body.append("   ⚠️ DEADLINE TODAY!\n");
+                    body.append("   DEADLINE TODAY!\n");
                 } else if (daysLeft == 1) {
-                    body.append("   ⚠️ Deadline tomorrow\n");
+                    body.append("   Deadline tomorrow\n");
                 } else if (daysLeft > 0) {
-                    body.append("   📅 Deadline in ").append(daysLeft).append(" days (")
+                    body.append("   Deadline in ").append(daysLeft).append(" days (")
                         .append(deadline.format(DateTimeFormatter.ofPattern("MMM dd")))
                         .append(")\n");
                 }
@@ -170,7 +170,7 @@ public class PendingJobsDigestService {
 
         // Other pending jobs summary
         if (!otherPending.isEmpty()) {
-            body.append("📋 Other pending applications: ").append(otherPending.size()).append("\n");
+            body.append("Other pending applications: ").append(otherPending.size()).append("\n");
             body.append("─────────────────────────────────────────\n");
             int limit = Math.min(otherPending.size(), 10);
             for (int i = 0; i < limit; i++) {
@@ -191,7 +191,7 @@ public class PendingJobsDigestService {
         }
 
         body.append("────────────────────────────────────────────\n");
-        body.append("👉 View all your jobs: ").append(frontendUrl).append("/dashboard\n\n");
+        body.append("View all your jobs: ").append(frontendUrl).append("/dashboard\n\n");
         body.append("Don't let these opportunities slip away — apply today!\n\n");
         body.append("Best regards,\n");
         body.append("JobKick Team");

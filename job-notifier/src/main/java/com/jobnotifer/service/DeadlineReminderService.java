@@ -136,7 +136,7 @@ public class DeadlineReminderService {
      * Send deadline reminder email to user
      */
     private void sendDeadlineReminderEmail(User user, List<Notification> notifications, LocalDate deadline) {
-        String subject = "⏰ Reminder: Job Application Deadlines Tomorrow!";
+        String subject = "Reminder: Job Application Deadlines Tomorrow!";
         String body = buildDeadlineReminderEmailBody(user, notifications, deadline);
         emailService.sendEmail(user.getEmail(), subject, body);
     }

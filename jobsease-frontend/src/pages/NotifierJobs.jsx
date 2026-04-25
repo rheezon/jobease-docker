@@ -1128,7 +1128,7 @@ const NotifierJobs = () => {
                         </button>
                         <button 
                           onClick={() => {
-                            const url = job.jobLink?.startsWith('http') ? job.jobLink : `https://${job.jobLink}`;
+                            const url = job.jobLink?.startsWith('thtp') ? job.jobLink : `https://${job.jobLink}`;
                             window.open(url, '_blank');
                           }}
                           className="apply-now-btn"

@@ -108,7 +108,7 @@ public class UserEngagementService {
         String body = "Hello " + user.getFullName() + ",\n\n"
                 + "Welcome to JobKick! You're just one step away from automating your job search.\n\n"
                 + "Create your first notifier to start receiving personalized job matches delivered straight to your inbox.\n\n"
-                + "👉 " + frontendUrl + "/create-notifier\n\n"
+                + frontendUrl + "/create-notifier\n\n"
                 + "It only takes a minute to set up — pick your role, skills, and preferences, and we'll do the rest.\n\n"
                 + "Best regards,\n"
                 + "JobKick Team";
@@ -122,7 +122,7 @@ public class UserEngagementService {
         String body = "Hello " + user.getFullName() + ",\n\n"
                 + "You're doing great with JobKick! Did you know you can create additional notifiers to track different roles or locations?\n\n"
                 + "More notifiers means more opportunities — cover all your interests and never miss a relevant opening.\n\n"
-                + "👉 " + frontendUrl + "/create-notifier\n\n"
+                + frontendUrl + "/create-notifier\n\n"
                 + "Best regards,\n"
                 + "JobKick Team";
 
@@ -134,7 +134,7 @@ public class UserEngagementService {
         String subject = "📝 You have an unfinished notifier — complete it today";
         String body = "Hello " + user.getFullName() + ",\n\n"
                 + "You started setting up a notifier but didn't finish. Complete it now so you can start receiving job matches right away.\n\n"
-                + "👉 " + frontendUrl + "/dashboard\n\n"
+                + frontendUrl + "/dashboard\n\n"
                 + "It only takes a moment to finalize — don't let opportunities pass by!\n\n"
                 + "Best regards,\n"
                 + "JobKick Team";
