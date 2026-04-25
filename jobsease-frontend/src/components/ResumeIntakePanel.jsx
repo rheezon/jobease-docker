@@ -28,6 +28,7 @@ export default function ResumeIntakePanel({
   const [appliedLatexTrim, setAppliedLatexTrim] = useState(null);
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState(null);
+  const [showLatexUpsellModal, setShowLatexUpsellModal] = useState(false);
   const fileRef = useRef(null);
 
   useEffect(() => {
@@ -52,10 +53,12 @@ export default function ResumeIntakePanel({
         const payload = buildOnboardingAutofill(formatted, user);
         onOnboardingAutofill?.(payload);
         setFeedback({ type: 'success', source: 'pdf', fileName: file.name });
+        setShowLatexUpsellModal(true);
       } else {
         const patch = buildCreateNotifierAutofill(formatted, user, { resumeFileName: file.name });
         onNotifierAutofill?.(patch);
         setFeedback({ type: 'success', source: 'pdf', fileName: file.name });
+        setShowLatexUpsellModal(true);
       }
       // PDF is a new source of truth: LaTeX must be submitted/updated again to match fields
       setAppliedLatexTrim(null);
@@ -130,12 +133,13 @@ export default function ResumeIntakePanel({
   };
 
   return (
-    <div className="form-section resume-intake-panel" style={{ marginBottom: '1.5rem' }}>
-      <h3 className="form-section-title">Resume: upload PDF or paste LaTeX</h3>
-      <p className="field-note" style={{ marginBottom: '1rem', color: 'var(--text-secondary, #64748b)' }}>
-        Add your resume first. We autofill the form below; you can change anything before continuing.
-        PDF uses a demo extractor today; LaTeX uses light pattern matching on your source.
-      </p>
+    <>
+      <div className="form-section resume-intake-panel" style={{ marginBottom: '1.5rem' }}>
+        <h3 className="form-section-title">Resume: upload PDF and/or paste LaTeX</h3>
+        <p className="field-note" style={{ marginBottom: '1rem', color: 'var(--text-secondary, #64748b)' }}>
+          Add your resume first. You can use both options: upload PDF for quick autofill and update LaTeX for smarter
+          resume tailoring per notifier.
+        </p>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
         <button
@@ -293,6 +297,66 @@ export default function ResumeIntakePanel({
           {feedback.message}
         </div>
       )}
-    </div>
+      </div>
+
+      {showLatexUpsellModal && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="latex-upsell-title"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.45)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1300,
+            padding: '16px',
+          }}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: 520,
+              background: '#ffffff',
+              borderRadius: 12,
+              border: '1px solid #e5e7eb',
+              boxShadow: '0 12px 32px rgba(15, 23, 42, 0.22)',
+              padding: '20px',
+            }}
+          >
+            <h4 id="latex-upsell-title" style={{ margin: 0, fontSize: 18, color: '#0f172a' }}>
+              PDF uploaded successfully
+            </h4>
+            <p style={{ margin: '10px 0 0', color: '#334155', lineHeight: 1.5, fontSize: 14 }}>
+              You can also update LaTeX code. This helps JobKick customize your resume for matched roles and keep your
+              resume data aligned with your notifier preferences.
+            </p>
+            <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button
+                type="button"
+                className="action-btn secondary"
+                onClick={() => setShowLatexUpsellModal(false)}
+                style={{ padding: '8px 14px', fontSize: 14 }}
+              >
+                Maybe later
+              </button>
+              <button
+                type="button"
+                className="submit-btn"
+                onClick={() => {
+                  setTab('latex');
+                  setShowLatexUpsellModal(false);
+                }}
+                style={{ padding: '8px 14px', fontSize: 14 }}
+              >
+                Update LaTeX now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

@@ -29,6 +29,7 @@ const Onboarding = () => {
     skills: [],
     salaryExpectation: '',
     role: '',
+    customRole: '',
     notifierName: '',
     companiesPreference: '',
     noticePeriod: '',
@@ -157,6 +158,37 @@ const Onboarding = () => {
     'Version Control', 'Git', 'SVN', 'Mercurial', 'GitHub', 'GitLab', 'Bitbucket'
   ];
 
+  const roleOptions = [
+    'Machine Learning Engineer',
+    'Senior Machine Learning Engineer',
+    'Software Developer',
+    'Backend Developer',
+    'Frontend Developer',
+    'Data Scientist',
+    'DevOps Engineer',
+    'Product Manager',
+    'Project Manager',
+    'Program Manager',
+    'Operations Manager',
+    'Engineering Manager',
+    'Director of Engineering',
+    'Director of Product',
+    'Director of Operations',
+    'General Manager',
+    'Chief of Staff',
+    'HR Manager',
+    'Talent Acquisition Specialist',
+    'Marketing Manager',
+    'Sales Manager',
+    'Customer Success Manager',
+    'Finance Manager',
+    'Cybersecurity Analyst',
+    'Security Engineer',
+    'Penetration Tester',
+    'SOC Analyst',
+    'Cloud Security Engineer',
+  ];
+
   if (!import.meta.env.PROD) {
     try { console.debug('[DEBUG] Onboarding component rendered', { userPresent: !!user, isLoading }); } catch {}
   }
@@ -208,7 +240,8 @@ const Onboarding = () => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: value,
+      ...(name === 'role' && value !== '__custom__' ? { customRole: '' } : {})
     }));
   };
 
@@ -264,9 +297,10 @@ const Onboarding = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     
     try {
+      const normalizedRole = formData.role === '__custom__' ? formData.customRole.trim() : formData.role;
       // Validate notifier fields
       if (!formData.location || !formData.experience || formData.skills.length === 0 || 
-          !formData.salaryExpectation || !formData.role || !formData.notifierName) {
+          !formData.salaryExpectation || !normalizedRole || !formData.notifierName) {
         setError('Please fill in all required notifier fields');
         setIsLoading(false);
         return;
@@ -306,7 +340,7 @@ const Onboarding = () => {
       // Create notifier (without college field)
       const createResponse = await notifierService.create({
         name: formData.notifierName,
-        role: formData.role,
+        role: normalizedRole,
         city: formData.location,
         salaryExpectation: formData.salaryExpectation,
         experience: formData.experience,
@@ -535,21 +569,27 @@ const Onboarding = () => {
                     required
                   >
                     <option value="">Select role</option>
-                    <option value="Machine Learning Engineer">Machine Learning Engineer</option>
-                    <option value="Senior Machine Learning Engineer">Senior Machine Learning Engineer</option>
-                    <option value="Software Developer">Software Developer</option>
-                    <option value="Backend Developer">Backend Developer</option>
-                    <option value="Frontend Developer">Frontend Developer</option>
-                    <option value="Data Scientist">Data Scientist</option>
-                    <option value="DevOps Engineer">DevOps Engineer</option>
-                    <option value="Product Manager">Product Manager</option>
-                    <option value="Cybersecurity Analyst">Cybersecurity Analyst</option>
-                    <option value="Security Engineer">Security Engineer</option>
-                    <option value="Penetration Tester">Penetration Tester</option>
-                    <option value="SOC Analyst">SOC Analyst</option>
-                    <option value="Cloud Security Engineer">Cloud Security Engineer</option>
+                    {roleOptions.map((role) => (
+                      <option key={role} value={role}>{role}</option>
+                    ))}
+                    <option value="__custom__">Other (enter your own role)</option>
                   </select>
                 </div>
+                {formData.role === '__custom__' && (
+                  <div className="form-group">
+                    <label htmlFor="customRole">Your Role *</label>
+                    <input
+                      type="text"
+                      id="customRole"
+                      name="customRole"
+                      value={formData.customRole}
+                      onChange={handleInputChange}
+                      placeholder="e.g., Regional Operations Lead"
+                      required
+                    />
+                    <small className="field-note">Enter your exact role if it's not listed above.</small>
+                  </div>
+                )}
 
                 <div className="form-group">
                   <label htmlFor="noticePeriod">Notice Period *</label>

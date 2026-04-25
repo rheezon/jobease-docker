@@ -1996,7 +1996,8 @@
 }
 
 .create-notifier-content {
-  max-width: 800px;
+  width: min(1180px, 96vw);
+  max-width: 1180px;
   margin: 0 auto;
   padding: var(--spacing-xl);
 }

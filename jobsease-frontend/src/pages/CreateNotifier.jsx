@@ -12,6 +12,7 @@ import ResumeIntakePanel from '../components/ResumeIntakePanel';
 const schema = yup.object({
   name: yup.string().required('Notifier name is required'),
   role: yup.string().required('Role is required'),
+  customRole: yup.string(),
   city: yup.string().required('City is required'),
   salaryExpectation: yup.string().required('Salary expectation is required'),
   experience: yup.string().required('Experience level is required'),
@@ -22,6 +23,52 @@ const schema = yup.object({
 });
 
 const CreateNotifier = () => {
+  const roleOptions = [
+    'Machine Learning Engineer',
+    'Senior Machine Learning Engineer',
+    'Software Developer',
+    'Backend Developer',
+    'Frontend Developer',
+    'Full Stack Developer',
+    'Mobile Developer (Android)',
+    'Mobile Developer (iOS)',
+    'Data Scientist',
+    'Data Engineer',
+    'MLOps Engineer',
+    'DevOps Engineer',
+    'Cloud Engineer',
+    'QA Engineer',
+    'Blockchain Developer',
+    'AI Engineer',
+    'Data Analyst',
+    'Business Analyst',
+    'UI/UX Designer',
+    'Product Designer',
+    'Product Manager',
+    'Project Manager',
+    'Program Manager',
+    'Operations Manager',
+    'Engineering Manager',
+    'Senior Engineering Manager',
+    'Director of Engineering',
+    'Director of Product',
+    'Director of Operations',
+    'General Manager',
+    'Chief of Staff',
+    'HR Manager',
+    'Talent Acquisition Specialist',
+    'Marketing Manager',
+    'Sales Manager',
+    'Customer Success Manager',
+    'Finance Manager',
+    'Cybersecurity Analyst',
+    'Security Engineer',
+    'Penetration Tester',
+    'SOC Analyst',
+    'Cloud Security Engineer',
+    'Intern',
+  ];
+
   const { user } = useAuth();
   const { refreshSidebarCounts, navigateWithGuard, registerNotifierFormGuard } = useOutletContext() || {};
   const [isLoading, setIsLoading] = useState(false);
@@ -146,7 +193,13 @@ const CreateNotifier = () => {
       if (draft && draft.isDraft) {
         setDraftId(String(draft.id));
         setValue('name', draft.name || '');
-        setValue('role', draft.role || '');
+        if (draft.role && roleOptions.includes(draft.role)) {
+          setValue('role', draft.role);
+          setValue('customRole', '');
+        } else {
+          setValue('role', draft.role ? '__custom__' : '');
+          setValue('customRole', draft.role || '');
+        }
         setValue('city', draft.city || '');
         setValue('salaryExpectation', draft.salaryExpectation || '');
         setValue('experience', draft.experience || '');
@@ -213,9 +266,14 @@ const CreateNotifier = () => {
 
   const persistDraft = async () => {
     const data = getValues();
+    const normalizedRole = data.role === '__custom__' ? (data.customRole || '').trim() : data.role;
     if (!data.name || data.name.trim() === '') {
       setError('Please enter a notifier name before saving draft');
       throw new Error('name-required');
+    }
+    if (!normalizedRole) {
+      setError('Please select a role or enter your own role');
+      throw new Error('role-required');
     }
 
     setIsLoading(true);
@@ -225,6 +283,7 @@ const CreateNotifier = () => {
       const skillsString = skills.join(', ');
       const draftData = {
         ...data,
+        role: normalizedRole,
         skills: skillsString || '',
         resumeFileName: resumeFileName || '',
         resumeLatex: data.resumeLatex || '',
@@ -288,8 +347,14 @@ const CreateNotifier = () => {
     setIsLoading(true);
     setError('');
     try {
+      const normalizedRole = data.role === '__custom__' ? (data.customRole || '').trim() : data.role;
       if (skills.length === 0) {
         setError('Please add at least one skill');
+        setIsLoading(false);
+        return;
+      }
+      if (!normalizedRole) {
+        setError('Please select a role or enter your own role');
         setIsLoading(false);
         return;
       }
@@ -299,6 +364,7 @@ const CreateNotifier = () => {
       // Use the resumeLatex value from the form field
       const notifierData = {
         ...data,
+        role: normalizedRole,
         skills: skillsString,
         resumeFileName: resumeFileName || '',
         resumeLatex: data.resumeLatex || '',
@@ -369,36 +435,26 @@ const CreateNotifier = () => {
                 defaultValue=""
               >
                 <option value="" disabled>Select role</option>
-                <option value="Machine Learning Engineer">Machine Learning Engineer</option>
-                <option value="Senior Machine Learning Engineer">Senior Machine Learning Engineer</option>
-                <option value="Software Developer">Software Developer</option>
-                <option value="Backend Developer">Backend Developer</option>
-                <option value="Frontend Developer">Frontend Developer</option>
-                <option value="Full Stack Developer">Full Stack Developer</option>
-                <option value="Mobile Developer (Android)">Mobile Developer (Android)</option>
-                <option value="Mobile Developer (iOS)">Mobile Developer (iOS)</option>
-                <option value="Data Scientist">Data Scientist</option>
-                <option value="Data Engineer">Data Engineer</option>
-                <option value="MLOps Engineer">MLOps Engineer</option>
-                <option value="DevOps Engineer">DevOps Engineer</option>
-                <option value="Cloud Engineer">Cloud Engineer</option>
-                <option value="QA Engineer">QA Engineer</option>
-                <option value="Blockchain Developer">Blockchain Developer</option>
-                <option value="AI Engineer">AI Engineer</option>
-                <option value="Data Analyst">Data Analyst</option>
-                <option value="Business Analyst">Business Analyst</option>
-                <option value="UI/UX Designer">UI/UX Designer</option>
-                <option value="Product Designer">Product Designer</option>
-                <option value="Product Manager">Product Manager</option>
-                <option value="Cybersecurity Analyst">Cybersecurity Analyst</option>
-                <option value="Security Engineer">Security Engineer</option>
-                <option value="Penetration Tester">Penetration Tester</option>
-                <option value="SOC Analyst">SOC Analyst</option>
-                <option value="Cloud Security Engineer">Cloud Security Engineer</option>
-                <option value="Intern">Intern</option>
+                {roleOptions.map((role) => (
+                  <option key={role} value={role}>{role}</option>
+                ))}
+                <option value="__custom__">Other (enter your own role)</option>
               </select>
               {errors.role && <span className="field-error">{errors.role.message}</span>}
             </div>
+            {watch('role') === '__custom__' && (
+              <div className="form-group">
+                <label htmlFor="customRole">Your Role *</label>
+                <input
+                  type="text"
+                  id="customRole"
+                  placeholder="e.g., Regional Operations Lead"
+                  {...register('customRole')}
+                  className={errors.customRole ? 'error' : ''}
+                />
+                <small className="field-note">Enter your exact role if it's not listed above.</small>
+              </div>
+            )}
 
             {/* City select */}
             <div className="form-group">
