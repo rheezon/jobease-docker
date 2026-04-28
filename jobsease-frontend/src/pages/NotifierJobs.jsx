@@ -1180,7 +1180,12 @@ const NotifierJobs = () => {
                     {activeTab === 'applied' && (
                       <button 
                         onClick={() => {
-                            const url = job.jobLink?.startsWith('http') ? job.jobLink : `https://${job.jobLink}`;
+                            let raw = job.jobLink || '';
+                            // Fix malformed URLs: "https//" -> "https://", "http//" -> "http://"
+                            raw = raw.replace(/^https\/\//i, 'https://').replace(/^http\/\//i, 'http://');
+                            // Strip duplicated protocol like "https://https//foo" or "https://http://foo"
+                            raw = raw.replace(/^https?:\/\/(?:https?:?\/\/)+/i, 'https://');
+                            const url = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
                             window.open(url, '_blank');
                           }}
                         className="view-resume-btn"
