@@ -10,7 +10,7 @@ import os
 import logging
 import hashlib
 from datetime import datetime, timezone
-from urllib.parse import unquote
+from urllib.parse import unquote, urlparse, parse_qs
 from bs4 import BeautifulSoup
 from googlenewsdecoder import new_decoderv1
 from logging.handlers import TimedRotatingFileHandler
@@ -236,6 +236,25 @@ class LinkedInIngestionService:
         match = re.search(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-z]{2,}", text)
         return match.group(0) if match else None
     
+    def unwrap_linkedin_url(self, url):
+        """Resolve lnkd.in shorteners and linkedin.com/redir wrappers to the real URL."""
+        if 'linkedin.com/redir' in url:
+            qs = parse_qs(urlparse(url).query)
+            if 'url' in qs:
+                return unquote(qs['url'][0])
+
+        if 'lnkd.in/' in url:
+            try:
+                res = requests.get(url, headers=self.headers, timeout=10)
+                soup = BeautifulSoup(res.text, 'html.parser')
+                anchor = soup.find('a', {'data-tracking-control-name': 'external_url_click'})
+                if anchor and anchor.get('href'):
+                    return anchor['href']
+            except Exception as e:
+                self.logger.warning(f"Failed to unwrap lnkd.in URL {url}: {e}")
+
+        return url
+
     def extract_apply_links(self, text):
         urls = re.findall(r"https?://[^\s]+", text)
 
@@ -253,6 +272,7 @@ class LinkedInIngestionService:
             url = url.strip(").,]\"'")
             url_lower = url.lower()
             if not any(domain in url_lower for domain in blocked_domains):
+                url = self.unwrap_linkedin_url(url)
                 apply_links.append(url)
 
         return list(set(apply_links))
