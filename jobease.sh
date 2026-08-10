@@ -479,54 +479,75 @@ cmd_push() {
     print_success "Authenticated with Docker Hub"
     echo ""
     
-    # Build all images
-    print_header "Step 1: Building Images"
-    print_info "Building all images locally..."
-    docker-compose build
-    if [ $? -ne 0 ]; then
-        print_error "Build failed"
-        exit 1
+    # Build all images with multi-platform support
+    print_header "Step 1: Building Images (Multi-Platform)"
+    
+    print_info "Setting up buildx for multi-platform builds..."
+    # Create builder if it doesn't exist
+    if ! docker buildx inspect multiplatform &>/dev/null; then
+        print_info "Creating buildx builder 'multiplatform'..."
+        docker buildx create --name multiplatform --use
+        docker buildx inspect --bootstrap
+    else
+        docker buildx use multiplatform
     fi
-    print_success "All images built successfully"
+    
+    print_info "Building images for linux/amd64 and linux/arm64..."
+    print_warning "This may take 5-10 minutes for multi-platform builds..."
     echo ""
     
-    # Tag and push backend
-    print_header "Step 2: Backend Image"
-    print_info "Tagging backend image..."
-    docker tag jobease/backend:latest ${dockerhub_user}/jobease-backend:${new_tag}
+    # We'll build directly with buildx in the push steps
+    print_success "Buildx configured for multi-platform builds"
+    echo ""
     
-    print_info "Pushing backend image to Docker Hub..."
-    docker push ${dockerhub_user}/jobease-backend:${new_tag}
+    # Build and push backend (multi-platform)
+    print_header "Step 2: Backend Image"
+    print_info "Building and pushing backend for linux/amd64 and linux/arm64..."
+    
+    docker buildx build \
+        --platform linux/amd64,linux/arm64 \
+        -t ${dockerhub_user}/jobease-backend:${new_tag} \
+        --push \
+        ./job-notifier
+    
     if [ $? -ne 0 ]; then
-        print_error "Failed to push backend image"
+        print_error "Failed to build/push backend image"
         exit 1
     fi
     print_success "Backend image pushed: ${dockerhub_user}/jobease-backend:${new_tag}"
     echo ""
     
-    # Tag and push frontend
+    # Build and push frontend (multi-platform)
     print_header "Step 3: Frontend Image"
-    print_info "Tagging frontend image..."
-    docker tag jobease/frontend:latest ${dockerhub_user}/jobease-frontend:${new_tag}
+    print_info "Building and pushing frontend for linux/amd64 and linux/arm64..."
     
-    print_info "Pushing frontend image to Docker Hub..."
-    docker push ${dockerhub_user}/jobease-frontend:${new_tag}
+    docker buildx build \
+        --platform linux/amd64,linux/arm64 \
+        -t ${dockerhub_user}/jobease-frontend:${new_tag} \
+        --build-arg VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:8080/api} \
+        --build-arg VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID} \
+        --push \
+        ./jobsease-frontend
+    
     if [ $? -ne 0 ]; then
-        print_error "Failed to push frontend image"
+        print_error "Failed to build/push frontend image"
         exit 1
     fi
     print_success "Frontend image pushed: ${dockerhub_user}/jobease-frontend:${new_tag}"
     echo ""
     
-    # Tag and push jobs-fetcher
+    # Build and push jobs-fetcher (multi-platform)
     print_header "Step 4: Jobs Fetcher Image"
-    print_info "Tagging jobs-fetcher image..."
-    docker tag jobease/jobs-fetcher:latest ${dockerhub_user}/jobease-jobs-fetcher:${new_tag}
+    print_info "Building and pushing jobs-fetcher for linux/amd64 and linux/arm64..."
     
-    print_info "Pushing jobs-fetcher image to Docker Hub..."
-    docker push ${dockerhub_user}/jobease-jobs-fetcher:${new_tag}
+    docker buildx build \
+        --platform linux/amd64,linux/arm64 \
+        -t ${dockerhub_user}/jobease-jobs-fetcher:${new_tag} \
+        --push \
+        ./jobs-fetcher
+    
     if [ $? -ne 0 ]; then
-        print_error "Failed to push jobs-fetcher image"
+        print_error "Failed to build/push jobs-fetcher image"
         exit 1
     fi
     print_success "Jobs-fetcher image pushed: ${dockerhub_user}/jobease-jobs-fetcher:${new_tag}"
@@ -561,16 +582,30 @@ cmd_push() {
         read -p "Also tag as 'latest'? (yes/no): " -r
         echo
         if [[ $REPLY =~ ^[Yy][Ee][Ss]$ ]]; then
-            print_info "Tagging and pushing as 'latest'..."
+            print_info "Building and pushing as 'latest' (multi-platform)..."
             
-            docker tag ${dockerhub_user}/jobease-backend:${new_tag} ${dockerhub_user}/jobease-backend:latest
-            docker push ${dockerhub_user}/jobease-backend:latest
+            # Backend
+            docker buildx build \
+                --platform linux/amd64,linux/arm64 \
+                -t ${dockerhub_user}/jobease-backend:latest \
+                --push \
+                ./job-notifier
             
-            docker tag ${dockerhub_user}/jobease-frontend:${new_tag} ${dockerhub_user}/jobease-frontend:latest
-            docker push ${dockerhub_user}/jobease-frontend:latest
+            # Frontend
+            docker buildx build \
+                --platform linux/amd64,linux/arm64 \
+                -t ${dockerhub_user}/jobease-frontend:latest \
+                --build-arg VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:8080/api} \
+                --build-arg VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID} \
+                --push \
+                ./jobsease-frontend
             
-            docker tag ${dockerhub_user}/jobease-jobs-fetcher:${new_tag} ${dockerhub_user}/jobease-jobs-fetcher:latest
-            docker push ${dockerhub_user}/jobease-jobs-fetcher:latest
+            # Jobs-fetcher
+            docker buildx build \
+                --platform linux/amd64,linux/arm64 \
+                -t ${dockerhub_user}/jobease-jobs-fetcher:latest \
+                --push \
+                ./jobs-fetcher
             
             print_success "Also tagged and pushed as 'latest'"
         fi

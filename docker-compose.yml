@@ -41,7 +41,6 @@ services:
       - "3307:3306"  # External:Internal (avoid conflict with local MySQL)
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./job-notifier/sample_data.sql:/docker-entrypoint-initdb.d/init.sql:ro
     networks:
       - jobease-network
     healthcheck:
@@ -105,17 +104,44 @@ services:
       # Scheduler Configuration
       SCHEDULER_FIXED_RATE: ${SCHEDULER_FIXED_RATE:-60000}
       SCHEDULER_ENABLED: ${SCHEDULER_ENABLED:-true}
+      SCHEDULER_DEADLINE_REMINDER_CRON: ${SCHEDULER_DEADLINE_REMINDER_CRON:-0 15 12 * * ?}
       SCHEDULER_DEADLINE_REMINDER_ENABLED: ${SCHEDULER_DEADLINE_REMINDER_ENABLED:-true}
-      SCHEDULER_NOTIFICATION_CLEANUP_ENABLED: ${NOTIFICATION_CLEANUP_ENABLED:-true}
+      SCHEDULER_PENDING_DIGEST_CRON: ${SCHEDULER_PENDING_DIGEST_CRON:-0 0 9 * * ?}
+      SCHEDULER_PENDING_DIGEST_ENABLED: ${SCHEDULER_PENDING_DIGEST_ENABLED:-true}
+      SCHEDULER_ENGAGEMENT_CRON: ${SCHEDULER_ENGAGEMENT_CRON:-0 0 10 * * ?}
+      SCHEDULER_ENGAGEMENT_ENABLED: ${SCHEDULER_ENGAGEMENT_ENABLED:-true}
+      SCHEDULER_ENGAGEMENT_FREQUENCY_DAYS: ${SCHEDULER_ENGAGEMENT_FREQUENCY_DAYS:-2}
+      SCHEDULER_NOTIFICATION_CLEANUP_CRON: ${SCHEDULER_NOTIFICATION_CLEANUP_CRON:-0 27 23 * * ?}
+      SCHEDULER_NOTIFICATION_CLEANUP_DAYS_THRESHOLD: ${SCHEDULER_NOTIFICATION_CLEANUP_DAYS_THRESHOLD:-10}
+      NOTIFICATION_CLEANUP_ENABLED: ${NOTIFICATION_CLEANUP_ENABLED:-true}
       
       # Notifier Configuration
       NOTIFIER_MAX_PER_USER: ${NOTIFIER_MAX_PER_USER:-5}
+      NOTIFIER_BACKFILL_JOB_COUNT: ${NOTIFIER_BACKFILL_JOB_COUNT:-50}
+      NOTIFIER_BACKFILL_MAX_AGE_DAYS: ${NOTIFIER_BACKFILL_MAX_AGE_DAYS:-7}
+      
+      # Rate Limiting Configuration
+      RATE_LIMIT_RESUME_UPDATE_COOLDOWN_MINUTES: ${RATE_LIMIT_RESUME_UPDATE_COOLDOWN_MINUTES:-60}
+      RATE_LIMIT_RESUME_UPDATE_COOLDOWN_TIMES: ${RATE_LIMIT_RESUME_UPDATE_COOLDOWN_TIMES:-2}
+      RATE_LIMIT_FORGOT_PASSWORD_COOLDOWN_MINUTES: ${RATE_LIMIT_FORGOT_PASSWORD_COOLDOWN_MINUTES:-2}
       
       # AI Configuration (Google Gemini)
       GEMINI_API_KEY: ${GEMINI_API_KEY}
-      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.0-flash}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash-lite}
       AI_RELEVANCE_THRESHOLD: ${AI_RELEVANCE_THRESHOLD:-0.7}
-      
+      AI_PROMPT_TEMPLATE: ${AI_PROMPT_TEMPLATE}
+      AI_RESUME_MODIFICATION_PROMPT: ${AI_RESUME_MODIFICATION_PROMPT}
+
+      # OpenRouter - Primary AI when enabled
+      OPENROUTER_ENABLED: ${OPENROUTER_ENABLED:-false}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-google/gemini-2.5-flash}
+      OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-https://openrouter.ai/api}
+
+      # Groq - Fallback AI (leave empty to disable)
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-llama-3.3-70b-versatile}
+
       # Google OAuth
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       
@@ -129,16 +155,21 @@ services:
       LATEX_TIMEOUT: ${LATEX_TIMEOUT:-30000}
       
       # Email Configuration (Gmail SMTP)
-      SPRING_MAIL_HOST: smtp.gmail.com
-      SPRING_MAIL_PORT: 587
+      SPRING_MAIL_HOST: ${SPRING_MAIL_HOST:-smtp.gmail.com}
+      SPRING_MAIL_PORT: ${SPRING_MAIL_PORT:-587}
       SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME}
       SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD}
-      SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH: true
-      SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: true
-      SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_REQUIRED: true
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH:-true}
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE:-true}
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_REQUIRED: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_REQUIRED:-true}
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_CONNECTIONTIMEOUT: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_CONNECTIONTIMEOUT:-5000}
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_TIMEOUT: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_TIMEOUT:-5000}
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_WRITETIMEOUT: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_WRITETIMEOUT:-5000}
       
-      # Frontend URL (for email links)
-      APP_FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      # Frontend URL (for email links) — must match where users open the UI (Compose maps frontend to 5173)
+      APP_FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      # Public API URL (scheme + host + port) for verification links in email — must be reachable from the user's browser
+      APP_API_PUBLIC_URL: ${APP_API_PUBLIC_URL:-http://localhost:8080}
       
       # Logging Configuration
       LOGGING_LEVEL_ROOT: ${LOGGING_LEVEL_ROOT:-INFO}
@@ -180,6 +211,11 @@ services:
       - backend
     ports:
       - "5173:5173"
+    environment:
+      # Runtime environment variables (injected when container starts)
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080/api}
+      VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID}
+      VITE_ENABLE_BACKEND_API: ${VITE_ENABLE_BACKEND_API:-true}
     volumes:
       - nginx_logs:/var/log/nginx
     networks:
@@ -200,7 +236,7 @@ services:
           memory: 128M
 
   # ==========================================================================
-  # Jobs Fetcher - Python Telegram bot for fetching jobs
+  # Jobs Fetcher - Python service for fetching jobs from Telegram groups
   # ==========================================================================
   jobs-fetcher:
     build:
@@ -215,29 +251,30 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
-    command: ["sh", "-c", "ls -la /app && python scheduler.py"]
     environment:
-      # Database Connection (MySQL URL format)
-      DATABASE_URL: mysql+mysqlconnector://${MYSQL_USER:-jobnotifier}:${MYSQL_PASSWORD:-jobnotifier123}@mysql:3306/${MYSQL_DATABASE:-job_notifier_db}
-      
+      # Database Configuration
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: ${MYSQL_USER:-jobnotifier}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-jobnotifier123}
+      MYSQL_DB: ${MYSQL_DATABASE:-job_notifier_db}
+
       # Telegram API Configuration
       TELEGRAM_API_ID: ${TELEGRAM_API_ID}
       TELEGRAM_API_HASH: ${TELEGRAM_API_HASH}
-      TELEGRAM_PHONE_NUMBER: ${TELEGRAM_PHONE_NUMBER}
-      TELEGRAM_SESSION_STRING: ${TELEGRAM_SESSION_STRING:-}
-      
-      # Telegram Groups (comma-separated)
+      TELEGRAM_SESSION_STRING: ${TELEGRAM_SESSION_STRING}
       TELEGRAM_GROUPS: ${TELEGRAM_GROUPS}
-      
-      # Scheduler Configuration (milliseconds)
-      SCHEDULE_INTERVAL_MS: ${SCHEDULE_INTERVAL_MS:-300000}
-      
+
+      # LinkedIn RSS Configuration
+      LINKEDIN_RSS_URL: ${LINKEDIN_RSS_URL:-}
+
+      # Scheduler Configuration (milliseconds - default 5 hours)
+      SCHEDULE_INTERVAL_MS: ${SCHEDULE_INTERVAL_MS:-18000000}
+
       # Logging
       PYTHONUNBUFFERED: 1
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       
-    volumes:
-      - ./jobs-fetcher/sessions:/app/sessions
     networks:
       - jobease-network
     deploy:

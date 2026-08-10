@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!-- Properties -->
+    <property name="LOG_PATH" value="logs"/>
+    <property name="LOG_ARCHIVE_PATH" value="${LOG_PATH}/archive"/>
+    
+    <!-- Console Appender -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+    
+    <!-- Single Log File Appender with Rolling Policy -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_PATH}/application.log</file>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+        
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <!-- Daily rollover with compression -->
+            <fileNamePattern>${LOG_ARCHIVE_PATH}/application-%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <!-- Each file should be at most 50MB -->
+            <maxFileSize>50MB</maxFileSize>
+            <!-- Keep 30 days worth of history -->
+            <maxHistory>30</maxHistory>
+            <!-- Total size of all archive files -->
+            <totalSizeCap>3GB</totalSizeCap>
+        </rollingPolicy>
+    </appender>
+    
+    <!-- Application Loggers -->
+    <logger name="com.jobnotifer" level="INFO"/>
+    
+    <!-- Spring Framework Loggers -->
+    <logger name="org.springframework" level="INFO"/>
+    <logger name="org.springframework.web" level="INFO"/>
+    <logger name="org.springframework.security" level="INFO"/>
+    
+    <!-- Database Loggers -->
+    <logger name="org.hibernate.SQL" level="WARN"/>
+    <logger name="org.hibernate.type.descriptor.sql.BasicBinder" level="WARN"/>
+    
+    <!-- Third-party Loggers -->
+    <logger name="com.zaxxer.hikari" level="INFO"/>
+    <logger name="com.mysql" level="WARN"/>
+    
+    <!-- Root Logger - Everything goes to console and file -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+    </root>
+    
+    <!-- Profile-specific configurations -->
+    <springProfile name="dev">
+        <logger name="com.jobnotifer" level="DEBUG"/>
+        <logger name="org.springframework.web" level="DEBUG"/>
+    </springProfile>
+    
+    <springProfile name="prod">
+        <logger name="com.jobnotifer" level="INFO"/>
+        <logger name="org.springframework" level="WARN"/>
+        <root level="WARN">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="FILE"/>
+        </root>
+    </springProfile>
+</configuration>
+
